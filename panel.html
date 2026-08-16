@@ -1,0 +1,344 @@
+<div id="ss_root">
+    <div class="ss-topbar">
+        <div class="ss-tabs">
+            <div class="ss-tab active" data-tab="generate"><i class="fa-solid fa-wand-magic-sparkles"></i> 생성</div>
+            <div class="ss-tab" data-tab="styles"><i class="fa-solid fa-palette"></i> 그림체</div>
+            <div class="ss-tab" data-tab="sources"><i class="fa-solid fa-images"></i> 레퍼런스</div>
+            <div class="ss-tab" data-tab="gallery"><i class="fa-solid fa-photo-film"></i> 갤러리</div>
+            <div class="ss-tab" data-tab="settings"><i class="fa-solid fa-gear"></i> 설정</div>
+        </div>
+        <div class="ss-applied" id="ss_applied_style" hidden></div>
+        <div class="ss-backend" id="ss_backend_status" title="현재 사용 중인 생성 백엔드">백엔드 확인 중…</div>
+    </div>
+
+    <!-- ─────────────── 생성 ─────────────── -->
+    <div class="ss-page active" data-page="generate">
+        <div class="ss-cols">
+            <div class="ss-col-main">
+                <!-- 생성 결과 뷰어 -->
+                <div class="ss-stage" id="ss_stage">
+                    <div class="ss-stage-empty" id="ss_stage_empty">
+                        <i class="fa-solid fa-image"></i>
+                        <span>생성한 이미지가 여기에 크게 표시됩니다</span>
+                    </div>
+                    <img id="ss_stage_img" alt="생성 결과" hidden>
+                    <div class="ss-stage-nav prev" id="ss_stage_prev" hidden><i class="fa-solid fa-chevron-left"></i></div>
+                    <div class="ss-stage-nav next" id="ss_stage_next" hidden><i class="fa-solid fa-chevron-right"></i></div>
+                    <div class="ss-stage-tip" id="ss_stage_tip" hidden>눌러서 저장</div>
+                </div>
+
+                <div class="ss-stage-bar" id="ss_stage_bar" hidden>
+                    <span class="ss-stage-info" id="ss_stage_info"></span>
+                    <span class="ss-spacer"></span>
+                    <span class="ss-linkbtn ss-g-download" title="파일로 저장"><i class="fa-solid fa-download"></i></span>
+                    <span class="ss-linkbtn ss-g-insert" title="채팅에 삽입"><i class="fa-solid fa-comment-medical"></i></span>
+                    <span class="ss-linkbtn ss-g-seed" title="시드 재사용"><i class="fa-solid fa-seedling"></i></span>
+                    <span class="ss-linkbtn ss-g-restore" title="이 설정 복원"><i class="fa-solid fa-rotate-left"></i></span>
+                    <span class="ss-linkbtn ss-g-style" title="그림체로 저장"><i class="fa-solid fa-palette"></i></span>
+                    <span class="ss-linkbtn ss-g-vibe" title="바이브로 등록"><i class="fa-solid fa-fingerprint"></i></span>
+                    <span class="ss-linkbtn ss-g-remove" title="목록에서 제거"><i class="fa-solid fa-xmark"></i></span>
+                </div>
+
+                <div id="ss_recent" class="ss-recent"></div>
+
+                <div id="ss_dropzone" class="ss-dropzone">
+                    <i class="fa-solid fa-cloud-arrow-down"></i>
+                    <div class="ss-dropzone-text">
+                        <b>이미지를 여기에 드롭</b> 하거나 붙여넣기(Ctrl+V) 하면 메타데이터를 읽어옵니다.
+                        <span class="ss-hint">NovelAI tEXt / stealth(알파채널) / A1111 parameters 지원</span>
+                    </div>
+                    <input type="file" id="ss_dropzone_input" accept="image/*" multiple hidden>
+                    <div class="menu_button ss-mini" id="ss_dropzone_browse">파일 선택</div>
+                </div>
+
+                <div id="ss_meta_result" class="ss-meta-result" hidden>
+                    <img id="ss_meta_thumb" alt="metadata source">
+                    <div class="ss-meta-body">
+                        <div id="ss_meta_summary" class="ss-meta-summary"></div>
+                        <div class="ss-row ss-wrap">
+                            <div class="menu_button ss-mini" id="ss_meta_apply_all" title="프롬프트·UC·캐릭터·파라미터를 전부 현재 설정으로 불러옵니다">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> 전부 적용
+                            </div>
+                            <div class="menu_button ss-mini" id="ss_meta_save_style" title="이 이미지를 그림체 프리셋으로 저장합니다">
+                                <i class="fa-solid fa-palette"></i> 그림체로 저장
+                            </div>
+                            <div class="menu_button ss-mini" id="ss_meta_as_vibe" title="이 이미지를 Vibe Transfer 소스로 등록합니다">
+                                <i class="fa-solid fa-fingerprint"></i> 바이브
+                            </div>
+                            <div class="menu_button ss-mini" id="ss_meta_as_charref" title="이 이미지를 특정 캐릭터의 레퍼런스로 붙입니다">
+                                <i class="fa-solid fa-user-tag"></i> 캐릭터 레퍼런스
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ss-meta-close" id="ss_meta_close"><i class="fa-solid fa-xmark"></i></div>
+                </div>
+
+                <div class="ss-field">
+                    <label>
+                        <span>프롬프트 (Base)</span>
+                        <span class="ss-field-actions">
+                            <span class="ss-linkbtn" id="ss_prompt_normalize" title="중복 태그 제거 및 공백 정리">정리</span>
+                            <span class="ss-linkbtn" id="ss_prompt_preview" title="와일드카드/랜덤 전개 결과 미리보기">전개 미리보기</span>
+                            <span class="ss-linkbtn" id="ss_prompt_style_merge" title="선택한 그림체 태그를 앞에 병합">그림체 병합</span>
+                        </span>
+                    </label>
+                    <textarea id="ss_prompt" class="text_pole textarea_compact ss-textarea" rows="5"
+                        placeholder="1girl, long black hair, cinematic lighting, __lighting__, {smile|serious}"></textarea>
+                    <div class="ss-hint">Ctrl+↑ / Ctrl+↓ : 커서 위치 태그 가중치 조절 · Ctrl+Enter : 생성</div>
+                </div>
+
+                <div class="ss-field">
+                    <label>
+                        <span>네거티브 (UC)</span>
+                        <span class="ss-field-actions">
+                            <select id="ss_uc_preset" class="text_pole ss-inline-select">
+                                <option value="">UC 프리셋…</option>
+                            </select>
+                        </span>
+                    </label>
+                    <textarea id="ss_negative" class="text_pole textarea_compact ss-textarea" rows="3"
+                        placeholder="lowres, worst quality, ..."></textarea>
+                </div>
+
+                <div class="ss-field">
+                    <label>
+                        <span>캐릭터 프롬프트 <small id="ss_char_count"></small>
+                            <small class="ss-refsum" id="ss_ref_summary"></small>
+                        </span>
+                        <span class="ss-field-actions">
+                            <label class="ss-checkline" title="끄면 NAI가 알아서 배치합니다">
+                                <input type="checkbox" id="ss_use_coords"> 위치 지정
+                            </label>
+                            <span class="ss-linkbtn" id="ss_char_add">+ 캐릭터 추가</span>
+                        </span>
+                    </label>
+                    <div id="ss_characters" class="ss-characters"></div>
+                    <div class="ss-hint ss-warn" id="ss_char_warn" hidden>
+                        현재 백엔드(ST 기본)는 캐릭터 프롬프트를 지원하지 않습니다. 서버 플러그인을 설치하세요.
+                    </div>
+                </div>
+
+                <div class="ss-params">
+                    <div class="ss-param">
+                        <label>모델</label>
+                        <select id="ss_model" class="text_pole"></select>
+                    </div>
+                    <div class="ss-param">
+                        <label>해상도</label>
+                        <select id="ss_size" class="text_pole"></select>
+                    </div>
+                    <div class="ss-param ss-param-narrow">
+                        <label>W</label>
+                        <input type="number" id="ss_width" class="text_pole" step="64" min="64">
+                    </div>
+                    <div class="ss-param ss-param-narrow">
+                        <label>H</label>
+                        <input type="number" id="ss_height" class="text_pole" step="64" min="64">
+                    </div>
+                    <div class="ss-param ss-param-narrow">
+                        <label>Steps</label>
+                        <input type="number" id="ss_steps" class="text_pole" min="1" max="50">
+                    </div>
+                    <div class="ss-param ss-param-narrow">
+                        <label>Guidance</label>
+                        <input type="number" id="ss_scale" class="text_pole" step="0.1" min="0" max="10">
+                    </div>
+                    <div class="ss-param ss-param-narrow">
+                        <label>Rescale</label>
+                        <input type="number" id="ss_cfg_rescale" class="text_pole" step="0.01" min="0" max="1">
+                    </div>
+                    <div class="ss-param">
+                        <label>Sampler</label>
+                        <select id="ss_sampler" class="text_pole"></select>
+                    </div>
+                    <div class="ss-param">
+                        <label>Scheduler</label>
+                        <select id="ss_scheduler" class="text_pole"></select>
+                    </div>
+                    <div class="ss-param ss-param-wide">
+                        <label>시드</label>
+                        <div class="ss-row">
+                            <input type="text" id="ss_seed" class="text_pole" placeholder="비우면 랜덤">
+                            <div class="menu_button ss-mini" id="ss_seed_lock" title="마지막 결과의 시드로 고정"><i class="fa-solid fa-lock-open"></i></div>
+                            <div class="menu_button ss-mini" id="ss_seed_random" title="시드 비우기"><i class="fa-solid fa-dice"></i></div>
+                        </div>
+                    </div>
+                    <div class="ss-param ss-param-wide ss-toggles">
+                        <label class="ss-checkline"><input type="checkbox" id="ss_variety"> Variety+</label>
+                        <label class="ss-checkline"><input type="checkbox" id="ss_decrisper"> Decrisper</label>
+                        <label class="ss-checkline"><input type="checkbox" id="ss_sm"> SMEA</label>
+                        <label class="ss-checkline"><input type="checkbox" id="ss_sm_dyn"> DYN</label>
+                    </div>
+                </div>
+
+                <div class="ss-row ss-wrap">
+                    <div class="menu_button ss-mini" id="ss_save_as_style"><i class="fa-solid fa-floppy-disk"></i> 현재 설정을 그림체로</div>
+                </div>
+            </div>
+
+            <div class="ss-col-side">
+                <div class="ss-side-title">빠른 그림체</div>
+                <div id="ss_quick_styles" class="ss-quick-styles"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─────────────── 그림체 ─────────────── -->
+    <div class="ss-page" data-page="styles">
+        <div class="ss-toolbar">
+            <input type="search" id="ss_style_search" class="text_pole" placeholder="이름/태그/프롬프트 검색">
+            <select id="ss_style_tag_filter" class="text_pole"><option value="">모든 태그</option></select>
+            <label class="ss-checkline"><input type="checkbox" id="ss_style_fav_only"> 즐겨찾기만</label>
+            <div class="ss-spacer"></div>
+            <div class="menu_button ss-mini" id="ss_style_new"><i class="fa-solid fa-plus"></i> 새 그림체</div>
+            <div class="menu_button ss-mini" id="ss_style_import_st" title="SillyTavern 이미지생성 확장에 저장된 스타일을 그림체로 가져옵니다">
+                <i class="fa-solid fa-download"></i> ST 스타일
+            </div>
+            <div class="menu_button ss-mini" id="ss_style_export"><i class="fa-solid fa-file-export"></i> 내보내기</div>
+            <div class="menu_button ss-mini" id="ss_style_import"><i class="fa-solid fa-file-import"></i> 가져오기</div>
+            <input type="file" id="ss_style_import_input" accept="application/json" hidden>
+        </div>
+        <div id="ss_style_grid" class="ss-style-grid"></div>
+    </div>
+
+    <!-- ─────────────── 레퍼런스 / 바이브 ─────────────── -->
+    <div class="ss-page" data-page="sources">
+        <div class="ss-section">
+            <div class="ss-section-title">
+                <span><i class="fa-solid fa-fingerprint"></i> Vibe Transfer</span>
+                <label class="ss-checkline"><input type="checkbox" id="ss_vibe_enabled"> 사용</label>
+                <div class="ss-spacer"></div>
+                <div class="menu_button ss-mini" id="ss_vibe_add">+ 이미지 추가</div>
+                <input type="file" id="ss_vibe_input" accept="image/*" multiple hidden>
+            </div>
+            <div id="ss_vibe_list" class="ss-vibe-list"></div>
+            <div class="ss-hint">v4 모델은 서버에서 encode-vibe 로 인코딩 후 전송됩니다(캐시됨). ST 기본 백엔드에서는 무시됩니다.</div>
+        </div>
+
+        <div class="ss-section">
+            <div class="ss-section-title">
+                <span><i class="fa-solid fa-user-tag"></i> Director Reference</span>
+                <label class="ss-checkline"><input type="checkbox" id="ss_ref_enabled"> 사용</label>
+                <div class="ss-spacer"></div>
+                <div class="menu_button ss-mini" id="ss_ref_add">이미지 지정</div>
+                <div class="menu_button ss-mini" id="ss_ref_clear">비우기</div>
+                <input type="file" id="ss_ref_input" accept="image/*" hidden>
+            </div>
+            <div class="ss-hint">
+                그림 전체에 적용되는 레퍼런스입니다. <b>캐릭터별 레퍼런스</b>는 생성 탭의 캐릭터 카드에서 각각 지정하며,
+                생성할 때 여기 것과 <b>한 요청에 함께</b> 전송됩니다 (합쳐서 최대 4장).
+            </div>
+            <div class="ss-ref-body">
+                <img id="ss_ref_preview" class="ss-ref-preview" alt="reference" hidden>
+                <div class="ss-ref-controls">
+                    <label>모드
+                        <select id="ss_ref_mode" class="text_pole">
+                            <option value="character&style">Character &amp; Style</option>
+                            <option value="character">Character</option>
+                            <option value="style">Style</option>
+                        </select>
+                    </label>
+                    <label>Strength <input type="range" id="ss_ref_strength" min="0" max="1" step="0.05"><span id="ss_ref_strength_v"></span></label>
+                    <label>Fidelity <input type="range" id="ss_ref_fidelity" min="0" max="1" step="0.05"><span id="ss_ref_fidelity_v"></span></label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─────────────── 갤러리 ─────────────── -->
+    <div class="ss-page" data-page="gallery">
+        <div class="ss-toolbar">
+            <div class="ss-hint">이번 세션에서 생성한 이미지입니다. 저장하지 않으면 패널을 닫아도 목록만 남고 원본은 사라집니다.</div>
+            <div class="ss-spacer"></div>
+            <div class="menu_button ss-mini" id="ss_gallery_clear">비우기</div>
+        </div>
+        <div id="ss_gallery" class="ss-gallery"></div>
+    </div>
+
+    <!-- ─────────────── 설정 ─────────────── -->
+    <div class="ss-page" data-page="settings">
+        <div class="ss-section">
+            <div class="ss-section-title"><span>백엔드</span></div>
+            <div class="ss-row ss-wrap">
+                <select id="ss_backend_select" class="text_pole">
+                    <option value="auto">자동 (자체 → autopic → ST 기본)</option>
+                    <option value="stylestudio">StyleStudio 서버 플러그인</option>
+                    <option value="autopic">AutoPic 서버 플러그인</option>
+                    <option value="native">ST 기본 NovelAI</option>
+                </select>
+                <div class="menu_button ss-mini" id="ss_backend_recheck">다시 확인</div>
+            </div>
+            <div class="ss-hint" id="ss_backend_detail"></div>
+        </div>
+
+        <div class="ss-section">
+            <div class="ss-section-title"><span>저장 위치</span></div>
+            <label class="ss-checkline"><input type="checkbox" id="ss_auto_save"> 생성하면 바로 파일로 저장</label>
+            <label class="ss-row">폴더 이름
+                <input type="text" id="ss_save_folder" class="text_pole" placeholder="StyleStudio">
+            </label>
+            <div class="ss-hint">
+                채팅방을 열어뒀든 안 열어뒀든 <b>항상 같은 곳</b>에 저장됩니다:
+                <code id="ss_save_path">user/images/StyleStudio/</code><br>
+                채팅에 삽입할 때도 이미 저장된 파일을 그대로 참조하므로 사본이 생기지 않습니다.
+                끄면 패널을 닫는 순간 이번 세션 이미지는 사라집니다.
+            </div>
+        </div>
+
+        <div class="ss-section">
+            <div class="ss-section-title"><span>동작</span></div>
+            <label class="ss-checkline"><input type="checkbox" id="ss_auto_normalize"> 생성 시 태그 자동 정리(중복 제거)</label>
+            <label class="ss-row">히스토리 보관 수
+                <input type="number" id="ss_keep_history" class="text_pole ss-num" min="0" max="200">
+            </label>
+            <div class="menu_button ss-mini" id="ss_save_defaults">현재 파라미터를 기본값으로 저장</div>
+        </div>
+
+        <div class="ss-section">
+            <div class="ss-section-title"><span>와일드카드 <small>매번 다른 값이 들어가는 자리</small></span></div>
+            <div class="ss-hint">
+                프롬프트에 <code>__이름__</code> 을 써두면 <b>생성할 때마다</b> 아래 목록 중 하나가 무작위로 그 자리에 들어갑니다.
+                그림체는 고정한 채 조명·포즈·배경만 굴리고 싶을 때 씁니다.<br>
+                예) <code>lighting</code> 을 등록해두고 프롬프트에 <code>1girl, __lighting__</code> →
+                뽑을 때마다 <code>1girl, soft lighting</code> / <code>1girl, backlighting</code> …<br>
+                한 번만 쓸 변주면 등록 없이 프롬프트에 바로 <code>{smile|serious}</code> 또는
+                <code>{2$$a|b|c}</code>(3개 중 2개 뽑기) 를 써도 됩니다.
+            </div>
+            <textarea id="ss_wildcards" class="text_pole textarea_compact ss-textarea" rows="8"
+                placeholder="hair: long black hair | short blonde hair | silver twintails"></textarea>
+            <div class="ss-hint">한 줄에 <code>이름: 값1 | 값2 | 값3</code> 형식.</div>
+            <div class="menu_button ss-mini" id="ss_wildcards_save">와일드카드 저장</div>
+        </div>
+
+        <div class="ss-section">
+            <div class="ss-section-title"><span>데이터</span></div>
+            <div class="ss-row ss-wrap">
+                <div class="menu_button ss-mini" id="ss_history_clear">히스토리 비우기</div>
+                <div class="menu_button ss-mini caution" id="ss_reset_all">모든 StyleStudio 설정 초기화</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─────────────── 항상 보이는 생성 바 ─────────────── -->
+    <div class="ss-actionbar">
+        <div class="ss-actionbar-main">
+            <div class="menu_button ss-generate" id="ss_generate">
+                <i class="fa-solid fa-bolt"></i>
+                <span class="ss-generate-label">생성</span>
+            </div>
+            <div class="menu_button ss-batch-btn" id="ss_batch"
+                title="같은 설정으로 여러 장을 연속으로 뽑습니다. 시드를 고정해두면 시드가 1씩 올라가며 변주가 나옵니다.">
+                <i class="fa-solid fa-layer-group"></i>
+                <input type="number" id="ss_batch_count" class="text_pole" value="4" min="2" max="16" title="연속으로 뽑을 장수">
+                <span>장 연속</span>
+            </div>
+        </div>
+        <div class="ss-actionbar-meta">
+            <span class="ss-progress" id="ss_progress" hidden></span>
+            <span class="ss-lastseed" id="ss_lastseed" hidden></span>
+            <span class="ss-savehint" id="ss_savehint"></span>
+        </div>
+    </div>
+
+    <div id="ss_autocomplete" class="ss-autocomplete" hidden></div>
+</div>
