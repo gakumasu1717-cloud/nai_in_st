@@ -23,8 +23,9 @@ import {
 import { extractImageMetadata } from './lib/png-metadata.js';
 import {
     buildPayload, generateImage, saveImageToServer, sendImageToChat, letterboxReference,
-    pingOwnPlugin, getBackendAvailability, resetBackendAvailability, defaultCenter, BACKEND,
+    pingOwnPlugin, probeAutopicPlugin, getBackendAvailability, resetBackendAvailability, defaultCenter, BACKEND,
     isChatOpen, MAX_DIRECTOR_REFERENCES, CENTER_STEPS, snapCenter,
+    checkAnlasCost, applyAnlasGuard, FREE_TIER,
 } from './lib/nai-client.js';
 
 const extensionFolderPath = new URL('.', import.meta.url).pathname.replace(/\/$/, '');
@@ -36,7 +37,6 @@ let sessionGallery = [];
 /** 뷰어에 크게 띄우고 있는 이미지의 인덱스 (0 = 가장 최근) */
 let viewerIndex = 0;
 let isGenerating = false;
-let cancelBatch = false;
 let lastSeed = '';
 /** 동시에 열려 있는 패널 수 (토스트 위치 복원 타이밍용) */
 let openPanelCount = 0;
@@ -121,6 +121,20 @@ async function fileToImageInfo(file) {
 
 let panelHtmlCache = null;
 
+/**
+ * 모바일에서 패널이 열리자마자 닫히던 문제:
+ * 메뉴 항목을 탭한 그 클릭이 계속 전파돼서 새로 뜬 팝업의 바깥 클릭으로 잡힌다.
+ * 전파를 끊고 한 틱 뒤에 열어서 원래 이벤트가 완전히 끝난 뒤 팝업이 뜨게 한다.
+ */
+function openPanelFromEvent(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+
+    if (openPanelCount > 0) return;   // 이미 열려 있으면 중복으로 열지 않는다
+
+    setTimeout(() => openPanel(), 60);
+}
+
 async function openPanel() {
     if (!panelHtmlCache) {
         panelHtmlCache = await $.get(`${extensionFolderPath}/panel.html`);
@@ -175,6 +189,7 @@ function mountActionBar($panel, attempt = 0) {
 
     updateSaveHint($panel);
     updateSeedChip($panel);
+    updateAnlasChip($panel);
 }
 
 /* ══════════════════════════ UI ↔ 상태 ══════════════════════════ */
@@ -235,6 +250,7 @@ function syncUiFromState($p) {
 
     $p.find('#ss_backend_select').val(settings.backend ?? 'auto');
     $p.find('#ss_auto_normalize').prop('checked', settings.autoNormalize !== false);
+    $p.find('#ss_anlas_guard').prop('checked', settings.anlasGuard !== false);
     $p.find('#ss_auto_save').prop('checked', settings.autoSave !== false);
     $p.find('#ss_save_folder').val(settings.saveFolder ?? 'StyleStudio');
     $p.find('#ss_keep_history').val(settings.keepHistory ?? 40);
@@ -242,6 +258,7 @@ function syncUiFromState($p) {
     updateSaveHint($p);
 
     renderAppliedStyle($p);
+    applyCollapsedState($p);
     renderCharacters($p);
     renderQuickStyles($p);
     renderStyleGrid($p);
@@ -292,7 +309,7 @@ function renderCharacters($p) {
                                 ? `<img src="${ref.thumb || dataUrl(ref.base64)}" alt="">`
                                 : '<i class="fa-solid fa-user-plus"></i><span>레퍼런스</span>'}
                         </div>
-                        <input type="file" class="ss-char-ref-input" accept="image/*" hidden>
+                        <input type="file" class="ss-char-ref-input ss-file-input" accept="image/*">
                         ${ref.base64 ? `
                             <label class="ss-checkline"><input type="checkbox" class="ss-char-ref-enabled" ${ref.enabled !== false ? 'checked' : ''}> 사용</label>
                             <label class="ss-char-ref-range">강도
@@ -327,6 +344,41 @@ function renderCharacters($p) {
     const nativeOnly = backend === BACKEND.NATIVE
         || (backend === 'auto' && availability[BACKEND.OWN] === false && availability[BACKEND.AUTOPIC] === false);
     $p.find('#ss_char_warn').prop('hidden', !(nativeOnly && s.characters.length > 0));
+}
+
+/* ── 접기/펼치기 ────────────────────────────────────────── */
+
+/** 저장된 접힘 상태를 화면에 반영 */
+function applyCollapsedState($p) {
+    const collapsed = getSettings().collapsed ?? {};
+    $p.find('[data-collapse]').each(function () {
+        $(this).toggleClass('ss-collapsed', !!collapsed[$(this).data('collapse')]);
+    });
+    updateCollapsedSummaries($p);
+}
+
+/** 접혀 있을 때 안에 뭐가 들었는지 헤더에 요약해서 보여준다 */
+function updateCollapsedSummaries($p) {
+    const s = getState();
+
+    const summaries = {
+        chars: s.characters.length ? `${s.characters.length}명` : '',
+        vibeSection: s.vibes.filter(v => v.enabled !== false).length
+            ? `${s.vibes.filter(v => v.enabled !== false).length}장`
+            : '',
+        refSection: s.ref?.base64 ? (s.ref.enabled ? '사용 중' : '꺼짐') : '',
+        prompt: splitTags(s.prompt).length ? `태그 ${splitTags(s.prompt).length}개` : '',
+        uc: splitTags(s.negative).length ? `태그 ${splitTags(s.negative).length}개` : '',
+        params: `${s.width}×${s.height} · ${s.steps}steps`,
+    };
+
+    for (const [key, text] of Object.entries(summaries)) {
+        const $head = $p.find(`[data-collapse="${key}"] .ss-collapse-head`);
+        $head.find('.ss-collapse-summary').remove();
+        if (text && $head.closest('[data-collapse]').hasClass('ss-collapsed')) {
+            $head.append(`<span class="ss-collapse-summary">${escapeHtml(text)}</span>`);
+        }
+    }
 }
 
 /** 지금 어떤 그림체가 적용돼 있는지 상단에 표시 */
@@ -403,8 +455,7 @@ function styleCardHtml(style, compact = false) {
             <div class="ss-style-prompt" title="${escapeHtml(style.positive)}">${escapeHtml(style.positive.slice(0, 120))}</div>
         </div>
         <div class="ss-style-actions">
-            <div class="menu_button ss-mini ss-style-apply">적용</div>
-            <div class="menu_button ss-mini ss-style-apply-prompt" title="태그만 병합">태그</div>
+            <div class="menu_button ss-mini ss-style-apply" title="태그·UC·파라미터·캐릭터를 한 번에 적용">적용</div>
             <div class="menu_button ss-mini ss-style-edit">편집</div>
             <div class="menu_button ss-mini ss-style-dup">복제</div>
             <div class="menu_button ss-mini caution ss-style-del">삭제</div>
@@ -557,6 +608,26 @@ function updateSaveHint($p) {
         .toggleClass('ss-warn', settings.autoSave === false);
 }
 
+/** 지금 설정이 무료 생성 조건인지 생성 바에 표시 */
+function updateAnlasChip($p) {
+    const settings = getSettings();
+    const { free, reasons } = checkAnlasCost(getState());
+    const $chip = bar($p, '#ss_anlas');
+
+    if (free) {
+        $chip.prop('hidden', false)
+            .removeClass('ss-warn')
+            .html('<i class="fa-solid fa-circle-check"></i> 무료 조건')
+            .attr('title', `해상도 ${FREE_TIER.MAX_PIXELS.toLocaleString()}픽셀 이하 · steps ${FREE_TIER.MAX_STEPS} 이하 · 업스케일 없음`);
+        return;
+    }
+
+    $chip.prop('hidden', false)
+        .addClass('ss-warn')
+        .html(`<i class="fa-solid fa-coins"></i> Anlas 소모${settings.anlasGuard !== false ? ' (자동 조정됨)' : ''}`)
+        .attr('title', reasons.join('\n'));
+}
+
 function updateSeedChip($p) {
     const $chip = bar($p, '#ss_lastseed');
     if (!lastSeed) return $chip.prop('hidden', true);
@@ -565,23 +636,35 @@ function updateSeedChip($p) {
 
 async function refreshBackendStatus($p) {
     const settings = getSettings();
-    const own = await pingOwnPlugin();
-    const availability = getBackendAvailability();
+    const [own, autopic] = await Promise.all([pingOwnPlugin(), probeAutopicPlugin()]);
 
-    const label = settings.backend === 'auto'
-        ? (own ? 'StyleStudio 플러그인' : (availability[BACKEND.AUTOPIC] === true ? 'AutoPic 플러그인' : 'AutoPic → ST 기본 (미확인)'))
-        : settings.backend;
+    const active = own ? 'StyleStudio 플러그인'
+        : autopic === true ? 'AutoPic 플러그인'
+        : 'ST 기본 (제한됨)';
+
+    const label = settings.backend === 'auto' ? active : settings.backend;
+    const degraded = !own && autopic !== true;
 
     $p.find('#ss_backend_status')
         .text(`백엔드: ${label}`)
-        .toggleClass('ss-backend-warn', settings.backend === 'auto' && !own);
+        .toggleClass('ss-backend-warn', settings.backend === 'auto' && degraded);
 
-    $p.find('#ss_backend_detail').html(
+    const lines = [
         own
-            ? 'StyleStudio 서버 플러그인이 설치되어 있습니다. 캐릭터 프롬프트·바이브·시드 고정 전부 사용 가능합니다.'
-            : 'StyleStudio 서버 플러그인이 없습니다. AutoPic 플러그인이 있으면 그쪽을 쓰고, 없으면 ST 기본 경로로 내려갑니다(캐릭터 프롬프트/바이브 미지원). <br>설치: <code>plugins/stylestudio/</code> 에 server-plugin 내용을 복사하고 config.yaml 의 <code>enableServerPlugins: true</code>',
-    );
+            ? '✅ <b>StyleStudio 플러그인</b> 감지됨 — 캐릭터 프롬프트·바이브·레퍼런스·시드 전부 사용 가능'
+            : '⬜ StyleStudio 플러그인 없음',
+        autopic === true
+            ? '✅ <b>AutoPic 플러그인</b> 감지됨 — 자체 플러그인이 없어도 캐릭터 프롬프트·바이브 사용 가능'
+            : autopic === null
+                ? '❔ AutoPic 플러그인 확인 불가 (구버전이면 탐지되지 않습니다. 설정에서 백엔드를 <b>AutoPic</b>으로 직접 고정하면 그대로 사용됩니다)'
+                : '⬜ AutoPic 플러그인 없음',
+    ];
 
+    if (!own) {
+        lines.push('설치하려면 <code>plugins/stylestudio/</code> 에 server-plugin 내용을 복사하고 config.yaml 의 <code>enableServerPlugins: true</code>');
+    }
+
+    $p.find('#ss_backend_detail').html(lines.join('<br>'));
     renderCharacters($p);
 }
 
@@ -597,9 +680,26 @@ function bindPanel($p) {
         $p.find(`.ss-page[data-page="${tab}"]`).addClass('active');
     });
 
+    /* 접기 / 펼치기 */
+    $p.on('click', '.ss-collapse-head', function () {
+        const $box = $(this).closest('[data-collapse]');
+        const key = $box.data('collapse');
+        const collapsed = !$box.hasClass('ss-collapsed');
+
+        $box.toggleClass('ss-collapsed', collapsed);
+
+        const settings = getSettings();
+        settings.collapsed = settings.collapsed ?? {};
+        settings.collapsed[key] = collapsed;
+        save();
+
+        updateCollapsedSummaries($p);
+    });
+
     /* 폼 → 상태 즉시 반영 */
     $p.on('change input', Object.values(FIELD_MAP).concat(Object.values(CHECK_MAP)).join(','), () => {
         readUiToState($p);
+        updateAnlasChip($p);
     });
 
     $p.on('change', '#ss_size', function () {
@@ -767,9 +867,7 @@ function bindPanel($p) {
     const $barElement = $p.find('.ss-actionbar');
     $p.data('ssBar', $barElement);
 
-    $barElement.on('click', '#ss_generate', () => runGenerate($p, 1));
-    $barElement.on('click', '#ss_batch', () => runGenerate($p, Math.max(2, Number(bar($p, '#ss_batch_count').val()) || 4)));
-    $barElement.on('click', '#ss_batch_count', event => event.stopPropagation());
+    $barElement.on('click', '#ss_generate', () => runGenerate($p));
 
     $p.on('click', '#ss_save_as_style', () => openStyleEditor($p, styleFromCurrentState()));
 
@@ -815,9 +913,6 @@ function bindPanel($p) {
     });
     $p.on('click', '.ss-style-apply', function () {
         applyStyle($p, getStyle($(this).closest('.ss-style-card').data('id')), 'all');
-    });
-    $p.on('click', '.ss-style-apply-prompt', function () {
-        applyStyle($p, getStyle($(this).closest('.ss-style-card').data('id')), 'prompt');
     });
     $p.on('click', '.ss-style-edit', function () {
         openStyleEditor($p, getStyle($(this).closest('.ss-style-card').data('id')));
@@ -922,6 +1017,11 @@ function bindPanel($p) {
         getSettings().autoNormalize = $(this).is(':checked');
         save();
     });
+    $p.on('change', '#ss_anlas_guard', function () {
+        getSettings().anlasGuard = $(this).is(':checked');
+        save();
+        updateAnlasChip($p);
+    });
     $p.on('change', '#ss_keep_history', function () {
         getSettings().keepHistory = Number($(this).val()) || 40;
         save();
@@ -947,8 +1047,25 @@ function bindPanel($p) {
         toast('success', '현재 파라미터를 기본값으로 저장했습니다.');
     });
     $p.on('click', '#ss_wildcards_save', () => {
-        setWildcards(textToWildcards($p.find('#ss_wildcards').val()));
-        toast('success', '와일드카드를 저장했습니다.');
+        const map = textToWildcards($p.find('#ss_wildcards').val());
+        setWildcards(map);
+        const names = Object.keys(map);
+        toast('success', names.length
+            ? `${names.length}개 저장됨 — 프롬프트에 ${names.slice(0, 3).map(n => `__${n}__`).join(', ')} 처럼 쓰세요.`
+            : '목록을 비웠습니다.');
+    });
+
+    $p.on('click', '#ss_wildcards_example', () => {
+        const example = [
+            'lighting: soft lighting | backlighting | cinematic lighting | rim light',
+            'pose: standing | sitting | leaning forward | arms crossed',
+            'expression: smile | light smile | expressionless | surprised',
+            'background: simple background | classroom | night city | cherry blossoms',
+        ].join('\n');
+
+        const current = String($p.find('#ss_wildcards').val() ?? '').trim();
+        $p.find('#ss_wildcards').val(current ? `${current}\n${example}` : example);
+        toast('info', '예제를 넣었습니다. 저장을 누르면 적용됩니다.');
     });
     $p.on('click', '#ss_history_clear', () => {
         clearHistory();
@@ -1331,7 +1448,7 @@ async function openStyleEditor($p, style) {
             <div class="ss-editor-thumb">
                 ${draft.thumb ? `<img src="${draft.thumb}" alt="">` : '<div class="ss-style-nothumb"><i class="fa-solid fa-palette"></i></div>'}
                 <div class="menu_button ss-mini ss-e-thumb-pick">썸네일 지정</div>
-                <input type="file" class="ss-e-thumb-input" accept="image/*" hidden>
+                <input type="file" class="ss-e-thumb-input ss-file-input" accept="image/*">
             </div>
         </div>
     `);
@@ -1450,14 +1567,12 @@ function setBusy($p, busy, text = '') {
     }
 
     $button.toggleClass('ss-busy', busy);
-    bar($p, '#ss_batch').toggleClass('disabled', busy);
     bar($p, '#ss_progress').prop('hidden', !busy).text(text);
 }
 
-async function runGenerate($p, count) {
+async function runGenerate($p) {
     if (isGenerating) {
-        cancelBatch = true;
-        toast('info', '남은 배치를 취소합니다.');
+        toast('info', '이미 생성 중입니다.');
         return;
     }
 
@@ -1469,12 +1584,11 @@ async function runGenerate($p, count) {
         return toast('warning', '프롬프트가 비어 있습니다.');
     }
 
-    cancelBatch = false;
-    setBusy($p, true, `생성 준비 중… (0/${count})`);
+    setBusy($p, true, '생성 준비 중…');
 
     const wildcards = getWildcards();
     const normalize = settings.autoNormalize !== false;
-    const baseSeed = Number.isInteger(Number(s.seed)) && String(s.seed).trim() !== '' ? Number(s.seed) : null;
+    const fixedSeed = Number.isInteger(Number(s.seed)) && String(s.seed).trim() !== '' ? Number(s.seed) : null;
 
     // 레퍼런스(전역 + 캐릭터별)는 NAI가 허용하는 캔버스로 미리 맞춰둔다 — 매 장 반복할 필요 없음
     const preparedRef = s.ref?.enabled && s.ref?.base64
@@ -1495,20 +1609,28 @@ async function runGenerate($p, count) {
         toast('warning', `레퍼런스가 ${refCount}장입니다. 앞의 ${MAX_DIRECTOR_REFERENCES}장만 전송됩니다.`);
     }
 
-    let done = 0;
     try {
-        for (let i = 0; i < count; i++) {
-            if (cancelBatch) break;
-            setBusy($p, true, `생성 중… (${done}/${count})`);
+        setBusy($p, true, '생성 중…');
+
+        {
+            // Anlas 가드 — ST의 novel_anlas_guard 는 SD 확장 전용이라 여기엔 적용되지 않는다
+            let guarded = s;
+            if (settings.anlasGuard !== false) {
+                const { state: clamped, notes } = applyAnlasGuard(s);
+                guarded = clamped;
+                if (notes.length > 0) {
+                    toast('info', `Anlas 아끼기: ${notes.join(', ')}`);
+                }
+            }
 
             const resolved = {
-                ...s,
+                ...guarded,
                 prompt: resolvePrompt(s.prompt, wildcards, { normalize }),
                 negative: resolvePrompt(s.negative, wildcards, { normalize }),
                 characters: preparedCharacters.map(c => ({ ...c, prompt: resolvePrompt(c.prompt, wildcards, { normalize }) })),
                 vibes: s.vibeEnabled ? s.vibes : [],
                 ref: preparedRef,
-                seed: baseSeed === null ? '' : baseSeed + i,   // 시드 고정 + 배치면 순차 증가
+                seed: fixedSeed === null ? '' : fixedSeed,
             };
 
             const payload = buildPayload(resolved);
@@ -1517,7 +1639,7 @@ async function runGenerate($p, count) {
             if (result.warning) toast('warning', result.warning);
 
             const item = {
-                id: `g_${Date.now()}_${i}`,
+                id: `g_${Date.now()}`,
                 base64: result.image,
                 seed: String(result.seed ?? resolved.seed ?? ''),
                 backend: result.backend,
@@ -1556,14 +1678,11 @@ async function runGenerate($p, count) {
 
             renderGallery($p);
             updateSeedChip($p);
-            done++;
-        }
 
-        if (done > 0) {
             const saved = settings.autoSave !== false
                 ? ` · user/images/${settings.saveFolder ?? 'StyleStudio'}/ 에 저장됨`
                 : '';
-            toast('success', `${done}장 생성 완료 (시드 ${lastSeed || '랜덤'})${saved}`);
+            toast('success', `생성 완료 (시드 ${item.seed || '랜덤'})${saved}`);
         }
     } catch (error) {
         console.error('[StyleStudio] 생성 실패:', error);
@@ -1773,7 +1892,7 @@ function createSettingsDrawer() {
         </div>
     `);
 
-    $('#ss_open_panel').on('click', openPanel);
+    $('#ss_open_panel').on('click', openPanelFromEvent);
     $('#ss_drawer_export').on('click', (event) => {
         event.preventDefault();
         downloadText(exportStyles(), 'stylestudio-styles.json');
@@ -1799,7 +1918,7 @@ function addWandMenuItem() {
             <span>StyleStudio</span>
         </div>
     `);
-    $item.on('click', openPanel);
+    $item.on('click', openPanelFromEvent);
 
     const $menu = $('#extensionsMenu');
     if ($menu.length) $menu.append($item);

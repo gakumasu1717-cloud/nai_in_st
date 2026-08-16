@@ -109,6 +109,28 @@
 .ss-inline-select { max-width: 160px; height: 26px; font-size: 0.85em; }
 
 .ss-linkbtn { cursor: pointer; opacity: 0.7; font-size: 0.85em; flex: 0 0 auto; white-space: nowrap; }
+
+/* 버튼 라벨은 버튼 안에서 줄바꿈시킨다.
+   nowrap이면 버튼이 통째로 넓어져서, 가로 공간이 남는데도 한 줄에 하나씩 쌓인다. */
+#ss_root .menu_button {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: keep-all;      /* 한글은 단어 단위로 끊어 읽기 편하게 */
+    text-align: center;
+    line-height: 1.25;
+}
+
+/* 파일 선택 input:
+   display:none / hidden 이면 iOS Safari가 프로그램 클릭을 무시해서
+   사진 갤러리가 열리지 않는다. 화면 밖으로 밀어 숨긴다. */
+.ss-file-input {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px; border: 0;
+    overflow: hidden; clip: rect(0, 0, 0, 0);
+    white-space: nowrap; opacity: 0;
+}
 .ss-linkbtn:hover { opacity: 1; color: var(--ss-accent); }
 
 .ss-checkline { display: inline-flex; align-items: center; gap: 4px; font-size: 0.85em; white-space: nowrap; }
@@ -227,6 +249,11 @@
 
 .ss-actionbar-main { display: flex; gap: 8px; align-items: stretch; }
 
+/* 버튼 안의 아이콘/글자가 클릭 대상을 가로채지 않게 —
+   "버튼 빈 곳만 눌린다" 증상의 원인이 된다. */
+.ss-generate > * { pointer-events: none; }
+#ss_root .menu_button { touch-action: manipulation; }
+
 .ss-generate {
     flex: 1 1 auto;
     min-height: 48px;
@@ -243,13 +270,6 @@
 .ss-generate.ss-busy { background: #f0ad4e !important; }
 .ss-generate.ss-busy .ss-generate-label::after { content: ' (클릭하면 중단)'; font-size: 0.8em; font-weight: 400; }
 
-.ss-batch-btn {
-    flex: 0 0 auto;
-    min-height: 48px;
-    border-radius: 10px !important;
-    gap: 6px !important;
-}
-.ss-batch-btn input { width: 48px; height: 26px; text-align: center; padding: 2px; }
 
 .ss-actionbar-meta {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -455,6 +475,49 @@
 .ss-ac-item { padding: 5px 10px; font-size: 0.85em; cursor: pointer; }
 .ss-ac-item:hover, .ss-ac-item.active { background: var(--ss-accent); color: #10131a; }
 
+/* ── 접기 / 펼치기 ── */
+.ss-collapse-head {
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    user-select: none; -webkit-user-select: none;
+    padding: 2px 0;
+}
+.ss-collapse-head:hover { color: var(--ss-accent); }
+
+.ss-chevron {
+    font-size: 0.75em; opacity: 0.55;
+    transition: transform 0.15s ease;
+}
+.ss-collapsed .ss-chevron { transform: rotate(-90deg); }
+
+.ss-collapse-summary {
+    font-size: 0.78em; font-weight: 400; opacity: 0.55;
+    padding: 1px 7px; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* 접혔을 때 헤더만 남기고 감춘다 */
+.ss-field.ss-collapsed > :not(label) { display: none; }
+.ss-section.ss-collapsed > :not(.ss-section-title) { display: none; }
+.ss-section.ss-collapsed .ss-section-title { margin-bottom: 0; }
+
+/* ── 기능 설명 블록 ── */
+.ss-explain {
+    font-size: 0.85em; line-height: 1.6;
+    background: rgba(255, 255, 255, 0.04);
+    border-left: 3px solid var(--ss-accent);
+    border-radius: 8px; padding: 10px 12px; margin-bottom: 10px;
+}
+.ss-explain-step { display: flex; align-items: flex-start; gap: 8px; margin-top: 6px; }
+.ss-explain-num {
+    flex: 0 0 auto;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--ss-accent); color: #10131a;
+    font-size: 0.75em; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 2px;
+}
+
 /* ── 설정 서랍 ── */
 .ss-drawer { display: flex; flex-direction: column; gap: 8px; padding: 6px 0; }
 
@@ -541,7 +604,12 @@ body.ss-panel-open #toast-container > div { opacity: 0.97; }
     /* 목록류 1~2열 */
     .ss-style-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .ss-style-actions { gap: 3px; }
-    .ss-style-actions .menu_button { flex: 1 1 auto; padding: 4px 5px !important; font-size: 0.78em !important; }
+    .ss-style-actions .menu_button {
+        flex: 1 1 auto; min-width: 0;
+        padding: 4px 5px !important; font-size: 0.78em !important;
+    }
+    /* 메타데이터 버튼도 라벨을 접어서 한 줄에 여러 개 들어가게 */
+    #ss_meta_result .menu_button { flex: 1 1 40%; }
     .ss-gallery { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .ss-gitem-bar { gap: 10px; justify-content: space-between; }
     .ss-vibe-list { grid-template-columns: 1fr; }
@@ -556,8 +624,6 @@ body.ss-panel-open #toast-container > div { opacity: 0.97; }
         background: var(--SmartThemeBlurTintColor, #1b1e26);
     }
     .ss-generate { min-height: 50px; font-size: 1.1em !important; }
-    .ss-batch-btn { min-height: 50px; padding: 5px 8px !important; }
-    .ss-batch-btn span { display: none; }
     .ss-actionbar-meta { font-size: 0.72em; }
 
     /* 컨트롤 줄에서는 생성 바가 한 줄, 닫기 버튼이 그 아래로 */
@@ -566,7 +632,7 @@ body.ss-panel-open #toast-container > div { opacity: 0.97; }
         flex: 1 1 100%; justify-content: center; flex-wrap: wrap;
     }
     .ss-in-controls .ss-savehint { max-width: none; }
-    .ss-controls-host > .menu_button:not(.ss-generate):not(.ss-batch-btn) { flex: 1 1 auto; }
+    .ss-controls-host > .menu_button:not(.ss-generate) { flex: 1 1 auto; }
 
     .ss-autocomplete { max-width: 92vw; }
     .ss-editor-row { flex-direction: column; gap: 6px; }
@@ -584,3 +650,7 @@ body.ss-panel-open #toast-container > div { opacity: 0.97; }
     .ss-linkbtn { opacity: 0.9; }
     .ss-style-fav { opacity: 0.7; }
 }
+
+/* Anlas 상태 칩 */
+.ss-anlas { display: inline-flex; align-items: center; gap: 4px; }
+.ss-anlas.ss-warn { font-weight: 600; }
