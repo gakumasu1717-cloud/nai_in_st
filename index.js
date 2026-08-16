@@ -34,6 +34,9 @@ const extensionFolderPath = new URL('.', import.meta.url).pathname.replace(/\/$/
 let state = null;
 /** 이번 세션에서 생성한 이미지 (base64 원본 포함) */
 let sessionGallery = [];
+/** 시드 입력이 비어 있거나 음수면 랜덤. UI에는 -1로 표기한다. */
+const RANDOM_SEED = -1;
+
 /** 뷰어에 크게 띄우고 있는 이미지의 인덱스 (0 = 가장 최근) */
 let viewerIndex = 0;
 let isGenerating = false;
@@ -60,7 +63,7 @@ function blankState() {
         ...structuredClone(settings.defaults ?? {}),
         prompt: '',
         negative: '',
-        seed: '',
+        seed: RANDOM_SEED,
         characters: [],
         vibes: [],
         vibeEnabled: false,
@@ -75,6 +78,10 @@ function getState() {
         if (!Array.isArray(state.characters)) state.characters = [];
         if (!Array.isArray(state.vibes)) state.vibes = [];
         if (!state.ref) state.ref = blankState().ref;
+        // 예전 버전은 랜덤 시드를 빈 문자열로 저장했다 → -1 로 통일
+        if (String(state.seed).trim() === '' || !Number.isInteger(Number(state.seed))) {
+            state.seed = RANDOM_SEED;
+        }
     }
     return state;
 }
@@ -109,6 +116,31 @@ function fillSelect($select, options, selected) {
         $select.append(`<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`);
     }
     if (selected !== undefined) $select.val(selected);
+}
+
+/**
+ * 파일 선택창을 연다.
+ *
+ * 모바일에서 사진을 고르고 돌아오면 팝업이 닫히는 문제가 있다.
+ * 파일 선택기가 닫히면서 발생한 클릭/포커스 이벤트가 팝업의 "바깥 클릭"으로
+ * 잡히기 때문이다. 잠시 동안 팝업 배경으로 가는 클릭을 캡처 단계에서 막는다.
+ */
+function openFilePicker($p, $input) {
+    const dialog = $p.closest('dialog, .popup, .mock-popup')[0];
+
+    if (dialog) {
+        const block = (event) => {
+            // 팝업 배경(다이얼로그 자신)으로 가는 클릭만 차단한다
+            if (event.target === dialog) {
+                event.stopPropagation();
+                event.preventDefault();
+            }
+        };
+        dialog.addEventListener('click', block, true);
+        setTimeout(() => dialog.removeEventListener('click', block, true), 1500);
+    }
+
+    $input.trigger('click');
 }
 
 async function fileToImageInfo(file) {
@@ -538,16 +570,19 @@ function renderStage($p) {
         $stage.removeAttr('data-id');
         $image.prop('hidden', true).removeAttr('src');
         $p.find('#ss_stage_empty').prop('hidden', false);
-        $p.find('#ss_stage_bar, #ss_stage_prev, #ss_stage_next, #ss_stage_tip').prop('hidden', true);
+        $p.find('#ss_stage_bar').prop('hidden', true);
         return;
     }
 
+    // 버튼들은 stage 바깥(#ss_stage_bar)에 있으므로 양쪽 모두에 id를 달아야
+    // galleryItem()의 closest('[data-id]') 가 대상을 찾는다
     $stage.attr('data-id', item.id);
+    $p.find('#ss_stage_bar').attr('data-id', item.id);
     $image.attr('src', dataUrl(item.base64)).prop('hidden', false);
     $p.find('#ss_stage_empty').prop('hidden', true);
-    $p.find('#ss_stage_bar, #ss_stage_tip').prop('hidden', false);
-    $p.find('#ss_stage_prev').prop('hidden', viewerIndex <= 0);
-    $p.find('#ss_stage_next').prop('hidden', viewerIndex >= sessionGallery.length - 1);
+    $p.find('#ss_stage_bar').prop('hidden', false);
+    $p.find('#ss_stage_prev').toggleClass('ss-disabled', viewerIndex <= 0);
+    $p.find('#ss_stage_next').toggleClass('ss-disabled', viewerIndex >= sessionGallery.length - 1);
 
     $p.find('#ss_stage_info').html([
         `${viewerIndex + 1} / ${sessionGallery.length}`,
@@ -796,7 +831,7 @@ function bindPanel($p) {
 
     /* 캐릭터별 레퍼런스 */
     $p.on('click', '.ss-char-ref-slot', function () {
-        $(this).closest('.ss-char-ref').find('.ss-char-ref-input').trigger('click');
+        openFilePicker($p, $(this).closest('.ss-char-ref').find('.ss-char-ref-input'));
     });
 
     $p.on('change', '.ss-char-ref-input', async function () {
@@ -858,8 +893,9 @@ function bindPanel($p) {
         toast('success', `시드 ${lastSeed} 고정`);
     });
     $p.on('click', '#ss_seed_random', () => {
-        $p.find('#ss_seed').val('');
+        $p.find('#ss_seed').val(RANDOM_SEED);
         readUiToState($p);
+        toast('info', '시드를 랜덤(-1)으로 되돌렸습니다.');
     });
 
     /* 생성 — 생성 바는 팝업 컨트롤 줄로 이동하므로 바 자체에 위임하고,
@@ -878,7 +914,7 @@ function bindPanel($p) {
     $p.on('input change', '#ss_style_search, #ss_style_tag_filter, #ss_style_fav_only', () => renderStyleGrid($p));
     $p.on('click', '#ss_style_new', () => openStyleEditor($p, null));
     $p.on('click', '#ss_style_export', () => downloadText(exportStyles(), 'stylestudio-styles.json'));
-    $p.on('click', '#ss_style_import', () => $p.find('#ss_style_import_input').trigger('click'));
+    $p.on('click', '#ss_style_import', () => openFilePicker($p, $p.find('#ss_style_import_input')));
     $p.on('change', '#ss_style_import_input', async function () {
         const file = this.files?.[0];
         if (!file) return;
@@ -942,7 +978,7 @@ function bindPanel($p) {
     });
 
     /* 바이브 / 레퍼런스 */
-    $p.on('click', '#ss_vibe_add', () => $p.find('#ss_vibe_input').trigger('click'));
+    $p.on('click', '#ss_vibe_add', () => openFilePicker($p, $p.find('#ss_vibe_input')));
     $p.on('change', '#ss_vibe_input', async function () {
         for (const file of this.files ?? []) {
             const info = await fileToImageInfo(file);
@@ -971,7 +1007,7 @@ function bindPanel($p) {
         persistState();
     });
 
-    $p.on('click', '#ss_ref_add', () => $p.find('#ss_ref_input').trigger('click'));
+    $p.on('click', '#ss_ref_add', () => openFilePicker($p, $p.find('#ss_ref_input')));
     $p.on('change', '#ss_ref_input', async function () {
         const file = this.files?.[0];
         if (!file) return;
@@ -1205,7 +1241,7 @@ function bindDropzone($p) {
         if (file) await handleMetadataFile($p, file);
     });
 
-    $p.on('click', '#ss_dropzone_browse', () => $p.find('#ss_dropzone_input').trigger('click'));
+    $p.on('click', '#ss_dropzone_browse', () => openFilePicker($p, $p.find('#ss_dropzone_input')));
     $p.on('change', '#ss_dropzone_input', async function () {
         const file = this.files?.[0];
         if (file) await handleMetadataFile($p, file);
@@ -1454,7 +1490,7 @@ async function openStyleEditor($p, style) {
     `);
 
     let thumb = draft.thumb ?? '';
-    $form.on('click', '.ss-e-thumb-pick', () => $form.find('.ss-e-thumb-input').trigger('click'));
+    $form.on('click', '.ss-e-thumb-pick', () => openFilePicker($form, $form.find('.ss-e-thumb-input')));
     $form.on('change', '.ss-e-thumb-input', async function () {
         const file = this.files?.[0];
         if (!file) return;
@@ -1588,7 +1624,10 @@ async function runGenerate($p) {
 
     const wildcards = getWildcards();
     const normalize = settings.autoNormalize !== false;
-    const fixedSeed = Number.isInteger(Number(s.seed)) && String(s.seed).trim() !== '' ? Number(s.seed) : null;
+    const seedValue = Number(s.seed);
+    const fixedSeed = String(s.seed).trim() !== '' && Number.isInteger(seedValue) && seedValue >= 0
+        ? seedValue
+        : null;   // 비었거나 -1이면 서버가 난수 생성
 
     // 레퍼런스(전역 + 캐릭터별)는 NAI가 허용하는 캔버스로 미리 맞춰둔다 — 매 장 반복할 필요 없음
     const preparedRef = s.ref?.enabled && s.ref?.base64
@@ -1630,7 +1669,7 @@ async function runGenerate($p) {
                 characters: preparedCharacters.map(c => ({ ...c, prompt: resolvePrompt(c.prompt, wildcards, { normalize }) })),
                 vibes: s.vibeEnabled ? s.vibes : [],
                 ref: preparedRef,
-                seed: fixedSeed === null ? '' : fixedSeed,
+                seed: fixedSeed === null ? RANDOM_SEED : fixedSeed,
             };
 
             const payload = buildPayload(resolved);
@@ -1720,8 +1759,8 @@ function downloadImage(item) {
 }
 
 function bindStage($p) {
-    // 이미지를 누르면 바로 저장
-    $p.on('click', '#ss_stage_img', () => downloadImage(sessionGallery[viewerIndex]));
+    // 이미지를 누르면 크게 보기 (저장은 아래 버튼으로)
+    $p.on('click', '#ss_stage_img', () => openLightbox(sessionGallery[viewerIndex]));
 
     $p.on('click', '#ss_stage_prev', (event) => {
         event.stopPropagation();
@@ -1829,19 +1868,22 @@ function bindGallery($p) {
         renderGallery($p);
     });
 
-    // 뷰어 이미지를 길게(우클릭) 누르면 프롬프트까지 크게 보기
-    $p.on('contextmenu', '#ss_stage_img', function (event) {
-        event.preventDefault();
-        const item = sessionGallery[viewerIndex];
-        if (!item) return;
-        callGenericPopup(
-            `<div class="ss-lightbox"><img src="${dataUrl(item.base64)}"><div class="ss-lightbox-meta">
-                <b>seed</b> ${escapeHtml(item.seed)} · <b>backend</b> ${escapeHtml(item.backend ?? '')}
+}
+
+/** 이미지를 원본 크기로 크게 보기 */
+function openLightbox(item) {
+    if (!item) return;
+
+    callGenericPopup(
+        `<div class="ss-lightbox">
+            <img src="${dataUrl(item.base64)}">
+            <div class="ss-lightbox-meta">
+                <b>seed</b> ${escapeHtml(item.seed)}${item.path ? ` · <b>파일</b> ${escapeHtml(item.path)}` : ''}
                 <pre>${escapeHtml(item.snapshot?.prompt ?? '')}</pre>
-            </div></div>`,
-            POPUP_TYPE.TEXT, '', { wide: true, large: true, allowVerticalScrolling: true },
-        );
-    });
+            </div>
+        </div>`,
+        POPUP_TYPE.TEXT, '', { wide: true, large: true, allowVerticalScrolling: true },
+    );
 }
 
 /* ══════════════════════════ 와일드카드 텍스트 ══════════════════════════ */

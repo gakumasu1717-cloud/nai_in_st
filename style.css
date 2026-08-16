@@ -110,13 +110,13 @@
 
 .ss-linkbtn { cursor: pointer; opacity: 0.7; font-size: 0.85em; flex: 0 0 auto; white-space: nowrap; }
 
-/* 버튼 라벨은 버튼 안에서 줄바꿈시킨다.
-   nowrap이면 버튼이 통째로 넓어져서, 가로 공간이 남는데도 한 줄에 하나씩 쌓인다. */
+/* 버튼 라벨은 "띄어쓰기 자리에서만" 줄바꿈시킨다.
+   nowrap이면 버튼이 통째로 넓어져 한 줄에 하나씩 쌓이고,
+   반대로 overflow-wrap:anywhere + min-width:0 이면 글자 단위로 쪼개져 세로쓰기가 된다. */
 #ss_root .menu_button {
-    min-width: 0;
     white-space: normal;
-    overflow-wrap: anywhere;
-    word-break: keep-all;      /* 한글은 단어 단위로 끊어 읽기 편하게 */
+    overflow-wrap: normal;     /* 단어 중간을 쪼개지 않는다 */
+    word-break: keep-all;      /* 한글도 어절 단위 유지 */
     text-align: center;
     line-height: 1.25;
 }
@@ -310,23 +310,21 @@
 .ss-progress { font-weight: 600; opacity: 1; color: var(--ss-accent); }
 .ss-refsum { font-weight: 400; opacity: 0.6; margin-left: 6px; }
 
-/* ── 결과 뷰어 ── */
+/* ── 결과 뷰어 ──
+   겹치는 오버레이 없이, 이미지가 폭을 그대로 채우고 높이는 비율대로 늘어난다.
+   (고정 비율 상자 + object-fit:contain 은 세로/가로 그림에서 빈 여백이 크게 생긴다) */
 .ss-stage {
-    position: relative;
     width: 100%;
-    aspect-ratio: 4 / 5;
-    max-height: min(52vh, 560px);
     border-radius: 12px;
-    background: rgba(0, 0, 0, 0.35);
-    border: 1px solid var(--ss-border);
-    display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.2);
     overflow: hidden;
+    line-height: 0;
 }
 
 .ss-stage img {
-    max-width: 100%; max-height: 100%;
-    /* flex 아이템의 기본 min-width:auto 는 max-width 를 무시한다 */
-    min-width: 0; min-height: 0;
+    width: 100%;
+    height: auto;
+    max-height: 70vh;
     object-fit: contain;
     cursor: pointer;
     display: block;
@@ -334,35 +332,26 @@
 .ss-stage img:hover { filter: brightness(1.04); }
 
 .ss-stage-empty {
-    display: flex; flex-direction: column; align-items: center; gap: 8px;
-    opacity: 0.35; font-size: 0.85em; text-align: center; padding: 16px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    opacity: 0.35; font-size: 0.85em; text-align: center;
+    padding: 28px 16px; line-height: 1.5;
+    border: 1px dashed var(--ss-border); border-radius: 12px;
 }
 .ss-stage-empty i { font-size: 2em; }
 
-.ss-stage-nav {
-    position: absolute; top: 50%; transform: translateY(-50%);
-    width: 38px; height: 38px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(0, 0, 0, 0.55); cursor: pointer; opacity: 0.7;
-}
-.ss-stage-nav:hover { opacity: 1; background: rgba(0, 0, 0, 0.75); }
-.ss-stage-nav.prev { left: 8px; }
-.ss-stage-nav.next { right: 8px; }
+/* 뷰어 아래: 정보 줄 + 버튼 줄을 분리한다 */
+.ss-stage-bar { display: flex; flex-direction: column; gap: 6px; }
 
-.ss-stage-tip {
-    /* translateX(-50%) 대신 auto 마진 — 레이아웃 오버플로를 만들지 않는다 */
-    position: absolute; bottom: 8px; left: 0; right: 0;
-    width: max-content; max-width: 90%; margin: 0 auto;
-    font-size: 0.72em; padding: 3px 10px; border-radius: 999px;
-    background: rgba(0, 0, 0, 0.55); opacity: 0.75; pointer-events: none;
+.ss-stage-row {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 0.8em; padding: 0 2px;
 }
+.ss-stage-info { opacity: 0.75; flex: 1 1 auto; text-align: center; }
+.ss-stage-row .ss-linkbtn { font-size: 1.1em; padding: 4px 8px; }
+.ss-stage-nav.ss-disabled { opacity: 0.2; pointer-events: none; }
 
-.ss-stage-bar {
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    font-size: 0.8em; padding: 2px;
-}
-.ss-stage-info { opacity: 0.75; }
-.ss-stage-bar .ss-linkbtn { font-size: 1.05em; }
+.ss-stage-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.ss-stage-actions .menu_button { flex: 1 1 auto; gap: 4px !important; }
 
 /* ── 사이드 ── */
 .ss-side-title { font-size: 0.8em; font-weight: 600; opacity: 0.7; margin-top: 4px; }
@@ -560,8 +549,10 @@ body.ss-panel-open #toast-container > div { opacity: 0.97; }
     }
 
     /* 뷰어는 세로로 조금 더 크게 */
-    .ss-stage { aspect-ratio: 3 / 4; max-height: 54vh; }
-    .ss-stage-nav { width: 44px; height: 44px; }
+    /* 모바일에서는 이미지가 폭을 꽉 채우고 높이 제한만 둔다 */
+    .ss-stage img { max-height: 62vh; }
+    .ss-stage-row .ss-linkbtn { padding: 8px 12px; }
+    .ss-stage-actions .menu_button { flex: 1 1 46%; }
     .ss-recent { grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); }
 
     /* 터치 타겟 확보 */
@@ -605,7 +596,7 @@ body.ss-panel-open #toast-container > div { opacity: 0.97; }
     .ss-style-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .ss-style-actions { gap: 3px; }
     .ss-style-actions .menu_button {
-        flex: 1 1 auto; min-width: 0;
+        flex: 1 1 auto;
         padding: 4px 5px !important; font-size: 0.78em !important;
     }
     /* 메타데이터 버튼도 라벨을 접어서 한 줄에 여러 개 들어가게 */

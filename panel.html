@@ -22,21 +22,37 @@
                         <span>생성한 이미지가 여기에 크게 표시됩니다</span>
                     </div>
                     <img id="ss_stage_img" alt="생성 결과" hidden>
-                    <div class="ss-stage-nav prev" id="ss_stage_prev" hidden><i class="fa-solid fa-chevron-left"></i></div>
-                    <div class="ss-stage-nav next" id="ss_stage_next" hidden><i class="fa-solid fa-chevron-right"></i></div>
-                    <div class="ss-stage-tip" id="ss_stage_tip" hidden>눌러서 저장</div>
                 </div>
 
                 <div class="ss-stage-bar" id="ss_stage_bar" hidden>
-                    <span class="ss-stage-info" id="ss_stage_info"></span>
-                    <span class="ss-spacer"></span>
-                    <span class="ss-linkbtn ss-g-download" title="파일로 저장"><i class="fa-solid fa-download"></i></span>
-                    <span class="ss-linkbtn ss-g-insert" title="채팅에 삽입"><i class="fa-solid fa-comment-medical"></i></span>
-                    <span class="ss-linkbtn ss-g-seed" title="시드 재사용"><i class="fa-solid fa-seedling"></i></span>
-                    <span class="ss-linkbtn ss-g-restore" title="이 설정 복원"><i class="fa-solid fa-rotate-left"></i></span>
-                    <span class="ss-linkbtn ss-g-style" title="그림체로 저장"><i class="fa-solid fa-palette"></i></span>
-                    <span class="ss-linkbtn ss-g-vibe" title="바이브로 등록"><i class="fa-solid fa-fingerprint"></i></span>
-                    <span class="ss-linkbtn ss-g-remove" title="목록에서 제거"><i class="fa-solid fa-xmark"></i></span>
+                    <div class="ss-stage-row">
+                        <span class="ss-linkbtn ss-stage-nav" id="ss_stage_prev" title="이전 결과"><i class="fa-solid fa-chevron-left"></i></span>
+                        <span class="ss-stage-info" id="ss_stage_info"></span>
+                        <span class="ss-linkbtn ss-stage-nav" id="ss_stage_next" title="다음 결과"><i class="fa-solid fa-chevron-right"></i></span>
+                    </div>
+                    <div class="ss-stage-actions">
+                        <div class="menu_button ss-mini ss-g-download" title="이 이미지를 기기에 다운로드">
+                            <i class="fa-solid fa-download"></i> 저장
+                        </div>
+                        <div class="menu_button ss-mini ss-g-insert" title="지금 열려 있는 채팅에 이미지 메시지로 넣습니다">
+                            <i class="fa-solid fa-comment-medical"></i> 채팅에 넣기
+                        </div>
+                        <div class="menu_button ss-mini ss-g-seed" title="이 이미지의 시드를 시드 칸에 넣어 같은 구도로 다시 뽑습니다">
+                            <i class="fa-solid fa-seedling"></i> 시드 가져오기
+                        </div>
+                        <div class="menu_button ss-mini ss-g-restore" title="이 이미지를 뽑을 때 쓴 프롬프트·캐릭터·파라미터를 전부 되돌립니다">
+                            <i class="fa-solid fa-rotate-left"></i> 설정 되돌리기
+                        </div>
+                        <div class="menu_button ss-mini ss-g-style" title="이 이미지를 그림체 프리셋으로 저장합니다">
+                            <i class="fa-solid fa-palette"></i> 그림체로 저장
+                        </div>
+                        <div class="menu_button ss-mini ss-g-vibe" title="이 이미지를 Vibe Transfer 소스로 등록합니다">
+                            <i class="fa-solid fa-fingerprint"></i> 바이브로 등록
+                        </div>
+                        <div class="menu_button ss-mini caution ss-g-remove" title="목록에서만 뺍니다 (저장된 파일은 그대로)">
+                            <i class="fa-solid fa-xmark"></i> 목록에서 빼기
+                        </div>
+                    </div>
                 </div>
 
                 <div id="ss_recent" class="ss-recent"></div>
@@ -167,7 +183,7 @@
                     <div class="ss-param ss-param-wide">
                         <label>시드</label>
                         <div class="ss-row">
-                            <input type="text" id="ss_seed" class="text_pole" placeholder="비우면 랜덤">
+                            <input type="number" id="ss_seed" class="text_pole" placeholder="-1 = 랜덤" step="1" title="-1 이면 매번 새 난수. 특정 숫자를 넣으면 그 시드로 고정됩니다.">
                             <div class="menu_button ss-mini" id="ss_seed_lock" title="마지막 결과의 시드로 고정"><i class="fa-solid fa-lock-open"></i></div>
                             <div class="menu_button ss-mini" id="ss_seed_random" title="시드 비우기"><i class="fa-solid fa-dice"></i></div>
                         </div>
