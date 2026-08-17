@@ -129,7 +129,8 @@
                             <label class="ss-checkline" title="끄면 NAI가 알아서 배치합니다">
                                 <input type="checkbox" id="ss_use_coords"> 위치 지정
                             </label>
-                            <span class="ss-linkbtn" id="ss_char_add">+ 캐릭터 추가</span>
+                            <span class="ss-linkbtn" id="ss_char_from_preset" title="저장해둔 캐릭터 불러오기">+ 저장된 캐릭터</span>
+                            <span class="ss-linkbtn" id="ss_char_add">+ 빈 캐릭터</span>
                         </span>
                     </label>
                     <div id="ss_characters" class="ss-characters"></div>
@@ -209,8 +210,14 @@
         </div>
     </div>
 
-    <!-- ─────────────── 그림체 ─────────────── -->
+    <!-- ─────────────── 그림체 / 캐릭터 ─────────────── -->
     <div class="ss-page" data-page="styles">
+        <div class="ss-seg" id="ss_lib_seg">
+            <div class="ss-seg-btn active" data-lib="styles"><i class="fa-solid fa-palette"></i> 그림체</div>
+            <div class="ss-seg-btn" data-lib="chars"><i class="fa-solid fa-user"></i> 캐릭터</div>
+        </div>
+
+        <div class="ss-lib" data-lib="styles">
         <div class="ss-toolbar">
             <input type="search" id="ss_style_search" class="text_pole" placeholder="이름/태그/프롬프트 검색">
             <select id="ss_style_tag_filter" class="text_pole"><option value="">모든 태그</option></select>
@@ -229,6 +236,24 @@
             <input type="file" id="ss_style_import_input" accept="application/json" class="ss-file-input">
         </div>
         <div id="ss_style_grid" class="ss-style-grid"></div>
+        </div>
+
+        <div class="ss-lib" data-lib="chars" hidden>
+            <div class="ss-toolbar">
+                <input type="search" id="ss_char_search" class="text_pole" placeholder="이름/태그 검색">
+                <select id="ss_char_tag_filter" class="text_pole"><option value="">모든 태그</option></select>
+                <div class="ss-spacer"></div>
+                <div class="menu_button ss-mini ss-primary" id="ss_charp_from_panel" title="지금 생성 탭에 있는 캐릭터를 저장합니다">
+                    <i class="fa-solid fa-floppy-disk"></i> 현재 캐릭터 저장
+                </div>
+                <div class="menu_button ss-mini" id="ss_charp_new"><i class="fa-solid fa-plus"></i> 빈 캐릭터</div>
+            </div>
+            <div class="ss-hint">
+                저장해둔 캐릭터를 누르면 <b>생성 탭에 캐릭터로 추가</b>되고 태그가 자동으로 붙습니다.
+                그림체와 따로 보관되므로 <b>그림체 A + 캐릭터 B·C</b> 처럼 섞어 쓸 수 있습니다.
+            </div>
+            <div id="ss_char_grid" class="ss-style-grid"></div>
+        </div>
     </div>
 
     <!-- ─────────────── 레퍼런스 / 바이브 ─────────────── -->

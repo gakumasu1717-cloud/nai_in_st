@@ -13,7 +13,9 @@ import {
 } from './lib/st.js';
 import {
     getSettings, save, listStyles, getStyle, upsertStyle, deleteStyle, duplicateStyle,
-    allStyleTags, exportStyles, importStyles, addHistory, clearHistory,
+    allStyleTags, addHistory, clearHistory,
+    listCharPresets, getCharPreset, upsertCharPreset, deleteCharPreset, duplicateCharPreset,
+    allCharPresetTags, exportAll, importAll,
     makeThumbnail, blobToBase64, DEFAULT_PARAMS, EXTENSION_NAME,
 } from './lib/store.js';
 import {
@@ -289,6 +291,7 @@ function syncUiFromState($p) {
     renderCharacters($p);
     renderQuickStyles($p);
     renderStyleGrid($p);
+    renderCharPresets($p);
     renderVibes($p);
     renderReferences($p);
     renderGallery($p);
@@ -320,6 +323,7 @@ function renderCharacters($p) {
                     <input type="text" class="text_pole ss-char-name" placeholder="캐릭터 ${index + 1}" value="${escapeHtml(character.name ?? '')}">
                     ${character.ref?.base64 ? '<span class="ss-char-refmark" title="레퍼런스 탭에서 관리합니다"><i class="fa-solid fa-user-tag"></i> 레퍼런스</span>' : ''}
                     <div class="ss-char-actions">
+                        <span class="ss-linkbtn ss-char-save" title="이 캐릭터를 저장"><i class="fa-solid fa-floppy-disk"></i></span>
                         <span class="ss-linkbtn ss-char-up" title="위로"><i class="fa-solid fa-arrow-up"></i></span>
                         <span class="ss-linkbtn ss-char-down" title="아래로"><i class="fa-solid fa-arrow-down"></i></span>
                         <span class="ss-linkbtn ss-char-remove" title="삭제"><i class="fa-solid fa-trash"></i></span>
@@ -494,6 +498,51 @@ function renderStyleGrid($p) {
         styles.length
             ? styles.map(s => styleCardHtml(s)).join('')
             : '<div class="ss-empty">조건에 맞는 그림체가 없습니다. 이미지를 드롭해서 하나 만들어보세요.</div>',
+    );
+}
+
+/** 캐릭터 프리셋 카드 */
+function charPresetCardHtml(preset) {
+    const prompt = String(preset.prompt ?? '');
+    const thumb = preset.thumb
+        ? `<img src="${preset.thumb}" alt="">`
+        : '<div class="ss-style-nothumb"><i class="fa-solid fa-user"></i></div>';
+    const tags = (preset.tags ?? []).map(t => `<span class="ss-chip">${escapeHtml(t)}</span>`).join('');
+
+    return `<div class="ss-style-card ss-char-card" data-id="${preset.id}">
+        <div class="ss-style-thumb">${thumb}
+            <span class="ss-charp-fav ${preset.favorite ? 'on' : ''}" title="즐겨찾기"><i class="fa-solid fa-star"></i></span>
+        </div>
+        <div class="ss-style-body">
+            <div class="ss-style-name">${escapeHtml(preset.name)}</div>
+            <div class="ss-style-tags">${tags}</div>
+            <div class="ss-style-prompt" title="${escapeHtml(prompt)}">${escapeHtml(prompt.slice(0, 120))}</div>
+            ${preset.uc ? `<div class="ss-style-prompt" style="opacity:.45">UC · ${escapeHtml(String(preset.uc).slice(0, 60))}</div>` : ''}
+        </div>
+        <div class="ss-style-actions">
+            <div class="menu_button ss-mini ss-charp-use" title="생성 탭에 이 캐릭터를 추가합니다">추가</div>
+            <div class="menu_button ss-mini ss-charp-edit">편집</div>
+            <div class="menu_button ss-mini ss-charp-dup">복제</div>
+            <div class="menu_button ss-mini caution ss-charp-del">삭제</div>
+        </div>
+    </div>`;
+}
+
+function renderCharPresets($p) {
+    const query = $p.find('#ss_char_search').val() ?? '';
+    const tag = $p.find('#ss_char_tag_filter').val() ?? '';
+    const presets = listCharPresets({ query, tag });
+
+    const $filter = $p.find('#ss_char_tag_filter');
+    const current = $filter.val();
+    $filter.empty().append('<option value="">모든 태그</option>');
+    for (const t of allCharPresetTags()) $filter.append(`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`);
+    $filter.val(current ?? '');
+
+    $p.find('#ss_char_grid').html(
+        presets.length
+            ? presets.map(charPresetCardHtml).join('')
+            : '<div class="ss-empty">저장된 캐릭터가 없습니다. 생성 탭에서 캐릭터를 만든 뒤 「현재 캐릭터 저장」을 누르세요.</div>',
     );
 }
 
@@ -859,6 +908,30 @@ function bindPanel($p) {
         persistState();
     });
 
+    // 카드 하나만 캐릭터 프리셋으로 저장 (이미 프리셋에서 온 것이면 덮어쓴다)
+    $p.on('click', '.ss-char-save', function () {
+        syncCharacterFromDom($p);
+        const character = getState().characters[Number($(this).closest('.ss-char').data('index'))];
+
+        if (!character || !String(character.prompt ?? '').trim()) {
+            return toast('warning', '태그가 비어 있어 저장할 수 없습니다.');
+        }
+
+        const saved = upsertCharPreset({
+            id: character.presetId,
+            name: character.name?.trim() || character.prompt.trim().slice(0, 20),
+            prompt: character.prompt ?? '',
+            uc: character.uc ?? '',
+            ref: character.ref ? structuredClone(character.ref) : null,
+            thumb: character.ref?.thumb ?? '',
+        });
+
+        character.presetId = saved.id;
+        renderCharPresets($p);
+        persistState();
+        toast('success', `"${saved.name}" 저장 완료`);
+    });
+
     $p.on('click', '.ss-char-remove', function () {
         const index = Number($(this).closest('.ss-char').data('index'));
         getState().characters.splice(index, 1);
@@ -903,6 +976,107 @@ function bindPanel($p) {
     $p.on('input change', '#ss_style_search, #ss_style_tag_filter, #ss_style_fav_only', () => renderStyleGrid($p));
     $p.on('click', '#ss_style_new', () => openStyleEditor($p, null));
 
+    /* ── 그림체 / 캐릭터 전환 ── */
+    $p.on('click', '.ss-seg-btn', function () {
+        const lib = $(this).data('lib');
+        $p.find('.ss-seg-btn').removeClass('active');
+        $(this).addClass('active');
+        $p.find('.ss-lib').each(function () {
+            $(this).prop('hidden', $(this).data('lib') !== lib);
+        });
+    });
+
+    /* ── 캐릭터 프리셋 ── */
+    $p.on('input change', '#ss_char_search, #ss_char_tag_filter', () => renderCharPresets($p));
+
+    $p.on('click', '#ss_charp_new', () => openCharPresetEditor($p, null));
+
+    $p.on('click', '#ss_charp_from_panel', async () => {
+        syncCharacterFromDom($p);
+        const characters = getState().characters.filter(c => String(c.prompt ?? '').trim());
+
+        if (characters.length === 0) {
+            return toast('info', '생성 탭에 저장할 캐릭터가 없습니다.');
+        }
+
+        // 한 명이면 바로, 여럿이면 고르게 한다
+        let picked = characters;
+        if (characters.length > 1) {
+            const $list = $(`<div class="ss-picker-list">${characters.map((c, i) =>
+                `<label class="ss-picker-row"><input type="checkbox" checked data-index="${i}">
+                    ${escapeHtml(c.name?.trim() || c.prompt.trim().slice(0, 30))}</label>`).join('')}</div>`);
+
+            const confirmed = await callGenericPopup($list, POPUP_TYPE.CONFIRM, '', { okButton: '저장' });
+            if (!confirmed) return;
+
+            const checked = $list.find('input:checked').map((_, el) => Number($(el).data('index'))).get();
+            picked = characters.filter((_, i) => checked.includes(i));
+        }
+
+        for (const character of picked) {
+            upsertCharPreset({
+                name: character.name?.trim() || character.prompt.trim().slice(0, 20),
+                prompt: character.prompt ?? '',
+                uc: character.uc ?? '',
+                ref: character.ref ? structuredClone(character.ref) : null,
+                thumb: character.ref?.thumb ?? '',
+            });
+        }
+
+        renderCharPresets($p);
+        toast('success', `${picked.length}명을 캐릭터로 저장했습니다.`);
+    });
+
+    $p.on('click', '.ss-charp-use', function () {
+        useCharPreset($p, getCharPreset($(this).closest('.ss-char-card').data('id')));
+    });
+    $p.on('click', '.ss-charp-edit', function () {
+        openCharPresetEditor($p, getCharPreset($(this).closest('.ss-char-card').data('id')));
+    });
+    $p.on('click', '.ss-charp-dup', function () {
+        duplicateCharPreset($(this).closest('.ss-char-card').data('id'));
+        renderCharPresets($p);
+    });
+    $p.on('click', '.ss-charp-del', async function () {
+        const id = $(this).closest('.ss-char-card').data('id');
+        const preset = getCharPreset(id);
+        const confirmed = await callGenericPopup(`"${escapeHtml(preset?.name ?? '')}" 캐릭터를 삭제할까요?`, POPUP_TYPE.CONFIRM);
+        if (!confirmed) return;
+        deleteCharPreset(id);
+        renderCharPresets($p);
+    });
+    $p.on('click', '.ss-charp-fav', function (event) {
+        event.stopPropagation();
+        const id = $(this).closest('.ss-char-card').data('id');
+        const preset = getCharPreset(id);
+        if (!preset) return;
+        upsertCharPreset({ id, favorite: !preset.favorite });
+        renderCharPresets($p);
+    });
+
+    /* 생성 탭에서 저장된 캐릭터 불러오기 */
+    $p.on('click', '#ss_char_from_preset', async () => {
+        const presets = listCharPresets();
+        if (presets.length === 0) {
+            return toast('info', '저장된 캐릭터가 없습니다. 그림체 탭 → 캐릭터에서 먼저 저장하세요.');
+        }
+
+        const $list = $(`<div class="ss-picker-list">${presets.map(preset =>
+            `<label class="ss-picker-row"><input type="checkbox" data-id="${preset.id}">
+                <b>${escapeHtml(preset.name)}</b>
+                <span class="ss-picker-sub">${escapeHtml(String(preset.prompt ?? '').slice(0, 50))}</span>
+            </label>`).join('')}</div>`);
+
+        const confirmed = await callGenericPopup($list, POPUP_TYPE.CONFIRM, '', { okButton: '추가', wide: true });
+        if (!confirmed) return;
+
+        const ids = $list.find('input:checked').map((_, el) => String($(el).data('id'))).get();
+        for (const id of ids) useCharPreset($p, getCharPreset(id), { silent: true });
+
+        if (ids.length) toast('success', `캐릭터 ${ids.length}명을 추가했습니다.`);
+    });
+
+
     // 이미지 → 메타데이터 → 그림체 편집기 (그림체 탭에서 바로)
     $p.on('click', '#ss_style_from_image', () => openFilePicker($p, $p.find('#ss_style_image_input')));
     $p.on('change', '#ss_style_image_input', async function () {
@@ -929,15 +1103,16 @@ function bindPanel($p) {
             thumb: loaded.thumb,
         });
     });
-    $p.on('click', '#ss_style_export', () => downloadText(exportStyles(), 'naistudio-styles.json'));
+    $p.on('click', '#ss_style_export', () => downloadText(exportAll(), 'naistudio-library.json'));
     $p.on('click', '#ss_style_import', () => openFilePicker($p, $p.find('#ss_style_import_input')));
     $p.on('change', '#ss_style_import_input', async function () {
         const file = this.files?.[0];
         if (!file) return;
         try {
-            const count = importStyles(await file.text());
-            toast('success', `${count}개 그림체를 가져왔습니다.`);
+            const result = importAll(await file.text());
+            toast('success', `그림체 ${result.styles}개 · 캐릭터 ${result.charPresets}개를 가져왔습니다.`);
             renderStyleGrid($p);
+            renderCharPresets($p);
             renderQuickStyles($p);
         } catch (error) {
             toast('error', `가져오기 실패: ${error.message}`);
@@ -1526,6 +1701,101 @@ async function importSillyTavernStyles($p) {
     toast('success', `${candidates.length}개를 가져왔습니다.`);
 }
 
+/** 저장된 캐릭터를 생성 탭 캐릭터 목록에 붙인다 (태그가 그대로 들어간다) */
+function useCharPreset($p, preset, { silent = false } = {}) {
+    if (!preset) return;
+
+    const s = getState();
+    s.characters.push({
+        name: preset.name ?? '',
+        prompt: preset.prompt ?? '',
+        uc: preset.uc ?? '',
+        center: defaultCenter(s.characters.length, s.characters.length + 1),
+        enabled: true,
+        ref: preset.ref ? structuredClone(preset.ref) : null,
+        presetId: preset.id,
+    });
+
+    renderCharacters($p);
+    renderReferences($p);
+    persistState();
+
+    if (!silent) toast('success', `"${preset.name}" 캐릭터를 추가했습니다.`);
+}
+
+async function openCharPresetEditor($p, preset) {
+    const draft = preset ?? { name: '', tags: [], prompt: '', uc: '', ref: null, thumb: '' };
+
+    const $form = $(`
+        <div class="ss-editor">
+            <h3>${draft.id ? '캐릭터 편집' : '새 캐릭터'}</h3>
+            <label>이름<input type="text" class="text_pole ss-c-name" value="${escapeHtml(draft.name ?? '')}"></label>
+            <label>분류 태그 (쉼표)<input type="text" class="text_pole ss-c-tags" value="${escapeHtml((draft.tags ?? []).join(', '))}"></label>
+            <label>캐릭터 태그<textarea class="text_pole textarea_compact ss-c-prompt" rows="4" placeholder="silver hair, blue eyes, school uniform">${escapeHtml(draft.prompt ?? '')}</textarea></label>
+            <label>전용 UC (선택)<textarea class="text_pole textarea_compact ss-c-uc" rows="2">${escapeHtml(draft.uc ?? '')}</textarea></label>
+            <div class="ss-editor-thumb">
+                ${draft.thumb ? `<img src="${draft.thumb}" alt="">` : '<div class="ss-style-nothumb"><i class="fa-solid fa-user"></i></div>'}
+                <div class="menu_button ss-mini ss-c-thumb-pick">썸네일 / 레퍼런스 지정</div>
+                <input type="file" class="ss-c-thumb-input ss-file-input" accept="image/*">
+            </div>
+            <div class="ss-hint">지정한 이미지는 썸네일이 되고, 이 캐릭터를 추가할 때 <b>캐릭터 레퍼런스</b>로도 함께 붙습니다.</div>
+        </div>
+    `);
+
+    let thumb = draft.thumb ?? '';
+    let ref = draft.ref ? structuredClone(draft.ref) : null;
+
+    $form.on('click', '.ss-c-thumb-pick', () => openFilePicker($form, $form.find('.ss-c-thumb-input')));
+    $form.on('change', '.ss-c-thumb-input', async function () {
+        const file = this.files?.[0];
+        this.value = '';
+        if (!file) return;
+
+        const info = await fileToImageInfo(file);
+        thumb = info.thumb;
+        ref = { ...info, strength: 1.0, fidelity: 1.0, mode: 'character', enabled: true };
+        $form.find('.ss-editor-thumb img, .ss-editor-thumb .ss-style-nothumb')
+            .replaceWith(`<img src="${thumb}" alt="">`);
+    });
+
+    // 팝업이 닫히며 DOM이 정리돼도 값이 남도록 미리 받아둔다
+    const values = {
+        name: draft.name ?? '',
+        tags: (draft.tags ?? []).join(', '),
+        prompt: draft.prompt ?? '',
+        uc: draft.uc ?? '',
+    };
+    const readForm = () => {
+        const pick = (selector, fallback) => {
+            const $el = $form.find(selector);
+            return $el.length ? $el.val() : fallback;
+        };
+        values.name = pick('.ss-c-name', values.name);
+        values.tags = pick('.ss-c-tags', values.tags);
+        values.prompt = pick('.ss-c-prompt', values.prompt);
+        values.uc = pick('.ss-c-uc', values.uc);
+    };
+    $form.on('input change', 'input, textarea', readForm);
+
+    const confirmed = await callGenericPopup($form, POPUP_TYPE.CONFIRM, '', { okButton: '저장', cancelButton: '취소', wide: true });
+    if (!confirmed) return;
+    readForm();
+
+    const saved = upsertCharPreset({
+        id: draft.id,
+        name: String(values.name ?? '').trim() || '이름 없는 캐릭터',
+        tags: splitTags(values.tags),
+        prompt: String(values.prompt ?? ''),
+        uc: String(values.uc ?? ''),
+        ref,
+        thumb,
+        favorite: draft.favorite ?? false,
+    });
+
+    renderCharPresets($p);
+    toast('success', `"${saved.name}" 저장 완료`);
+}
+
 async function openStyleEditor($p, style) {
     const draft = style ?? { name: '', note: '', tags: [], positive: '', negative: '', params: {}, characters: [], vibes: [], ref: null, thumb: '' };
 
@@ -2041,7 +2311,7 @@ function createSettingsDrawer() {
     $('#ss_open_panel').on('click', openPanelFromEvent);
     $('#ss_drawer_export').on('click', (event) => {
         event.preventDefault();
-        downloadText(exportStyles(), 'naistudio-styles.json');
+        downloadText(exportAll(), 'naistudio-library.json');
     });
 
     updateDrawer();
@@ -2135,5 +2405,6 @@ window.NaiStudio = {
     getSettings,
     get gallery() { return sessionGallery; },
     get busy() { return isGenerating; },
+    exportLibrary: exportAll,
     getContext,
 };

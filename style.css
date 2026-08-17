@@ -81,11 +81,30 @@
 .ss-applied + .ss-backend { margin-left: 0; }
 .ss-applied-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 
+/* 그림체 / 캐릭터 전환 */
+.ss-seg {
+    display: flex; gap: 4px; padding: 3px; margin-bottom: 10px;
+    border: 1px solid var(--ss-border); border-radius: 10px;
+    background: rgba(0, 0, 0, 0.15);
+}
+.ss-seg-btn {
+    flex: 1 1 auto; text-align: center; cursor: pointer;
+    padding: 7px 10px; border-radius: 8px;
+    font-size: 0.88em; opacity: 0.65; white-space: nowrap;
+}
+.ss-seg-btn:hover { opacity: 1; }
+.ss-seg-btn.active {
+    opacity: 1; font-weight: 600;
+    background: var(--ss-accent); color: #10131a;
+}
+
 /* 캐릭터 선택 목록 */
-.ss-picker-list { display: flex; flex-direction: column; gap: 4px; text-align: left; }
+.ss-picker-list { display: flex; flex-direction: column; gap: 4px; text-align: left; max-height: 55vh; overflow-y: auto; }
 .ss-picker-row {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
     padding: 8px 10px; border: 1px solid var(--ss-border); border-radius: 8px; cursor: pointer; font-size: 0.9em;
 }
+.ss-picker-sub { font-size: 0.85em; opacity: 0.55; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ss-picker-row:hover { background: rgba(255, 255, 255, 0.07); }
 .ss-picker-row.selected { border-color: var(--ss-accent); background: rgba(110, 168, 254, 0.12); }
 
@@ -383,6 +402,13 @@
     opacity: 0.4; text-shadow: 0 0 4px #000;
 }
 .ss-style-fav.on { opacity: 1; color: #ffc107; }
+
+/* 캐릭터 카드 즐겨찾기 (그림체 카드와 동일한 자리) */
+.ss-charp-fav {
+    position: absolute; top: 6px; right: 6px; cursor: pointer;
+    opacity: 0.4; text-shadow: 0 0 4px #000;
+}
+.ss-charp-fav.on { opacity: 1; color: #ffc107; }
 .ss-style-body { padding: 8px; display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; }
 .ss-style-name { font-weight: 600; font-size: 0.9em; }
 .ss-style-tags { display: flex; gap: 4px; flex-wrap: wrap; }
