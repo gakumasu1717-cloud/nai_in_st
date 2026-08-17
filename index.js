@@ -20,7 +20,7 @@ import {
 } from './lib/store.js';
 import {
     MODELS, SAMPLERS, SCHEDULERS, SIZE_PRESETS, BASE_TAGS, isV4Model,
-    normalizeTags, mergePrompts, subtractPrompt, resolvePrompt, adjustWeight, getTagRangeAtCaret, splitTags,
+    normalizeTags, subtractPrompt, resolvePrompt, adjustWeight, getTagRangeAtCaret, splitTags,
 } from './lib/prompt-tools.js';
 import { extractImageMetadata } from './lib/png-metadata.js';
 import {
@@ -850,14 +850,6 @@ function bindPanel($p) {
         toast('success', '태그를 정리했습니다.');
     });
 
-    $p.on('click', '#ss_prompt_style_merge', async () => {
-        const style = await pickStyle();
-        if (!style) return;
-        $p.find('#ss_prompt').val(mergePrompts(style.positive, $p.find('#ss_prompt').val()));
-        readUiToState($p);
-        toast('success', `"${style.name}" 태그를 병합했습니다.`);
-    });
-
     /* 가중치 조절 + 단축키 */
     $p.on('keydown', 'textarea', function (event) {
         if (event.ctrlKey && event.key === 'Enter') {
@@ -1612,6 +1604,10 @@ function applyMetadata($p, mode) {
         s.prompt = meta.prompt ?? '';
         s.negative = meta.negative ?? '';
         s.characters = (meta.characters ?? []).map(c => ({ ...c, name: '', enabled: true }));
+
+        // 프롬프트를 통째로 갈아끼웠으므로 이전 그림체 표시는 무효.
+        // (남겨두면 다음 그림체 적용 때 엉뚱한 태그를 지우거나, 반대로 이미지 태그가 그대로 얹힌다)
+        s.appliedStyle = null;
     }
 
     if (mode === 'all' || mode === 'params') {
@@ -1921,45 +1917,21 @@ async function openStyleEditor($p, style) {
     toast('success', `"${saved.name}" 저장 완료`);
 }
 
-async function pickStyle() {
-    const styles = listStyles();
-    if (styles.length === 0) {
-        toast('info', '저장된 그림체가 없습니다.');
-        return null;
-    }
-
-    const $list = $(`<div class="ss-picker">${styles.map(s => `
-        <div class="ss-picker-item" data-id="${s.id}">
-            ${s.thumb ? `<img src="${s.thumb}">` : '<div class="ss-style-nothumb"><i class="fa-solid fa-palette"></i></div>'}
-            <span>${escapeHtml(s.name)}</span>
-        </div>`).join('')}</div>`);
-
-    let picked = null;
-    $list.on('click', '.ss-picker-item', function () {
-        picked = $(this).data('id');
-        $list.find('.ss-picker-item').removeClass('selected');
-        $(this).addClass('selected');
-    });
-
-    const confirmed = await callGenericPopup($list, POPUP_TYPE.CONFIRM, '', { okButton: '선택', wide: true });
-    return confirmed && picked ? getStyle(picked) : null;
-}
-
 /**
  * @param {'all'|'prompt'|'params'} mode
  */
 function applyStyle($p, style, mode = 'all') {
     if (!style) return;
+
+    readUiToState($p);   // 사용자가 방금 고친 프롬프트까지 반영한 뒤에 계산한다
     const s = getState();
 
     if (mode === 'all' || mode === 'prompt') {
-        // 이전에 적용한 그림체 태그는 걷어내고 새 것으로 갈아끼운다
-        if (s.appliedStyle?.positive) {
-            s.prompt = subtractPrompt(s.prompt, s.appliedStyle.positive);
-            s.negative = subtractPrompt(s.negative, s.appliedStyle.negative ?? '');
-        }
-        s.prompt = mergePrompts(style.positive, s.prompt);
-        if (style.negative) s.negative = mergePrompts(style.negative, s.negative);
+        // 프롬프트는 항상 그림체 것으로 통째로 교체한다.
+        // (이전 태그를 부분적으로 걷어내는 방식은 이미지에서 온 태그처럼
+        //  '무엇이 화풍인지' 알 수 없는 경우 태그가 섞여버린다)
+        s.prompt = String(style.positive ?? '');
+        s.negative = String(style.negative ?? '');
         s.appliedStyle = { id: style.id, name: style.name, positive: style.positive, negative: style.negative };
     }
 
@@ -1978,7 +1950,7 @@ function applyStyle($p, style, mode = 'all') {
 
     syncUiFromState($p);
     persistState();
-    toast('success', `"${style.name}" 적용`);
+    toast('success', `"${style.name}" 적용 — 프롬프트를 교체했습니다.`);
 }
 
 /* ══════════════════════════ 생성 ══════════════════════════ */
@@ -2360,7 +2332,10 @@ async function registerSlashCommands() {
                 const style = getSettings().styles.find(s => s.name.toLowerCase() === name);
                 if (!style) return '그림체를 찾을 수 없습니다.';
                 const s = getState();
-                s.prompt = mergePrompts(style.positive, s.prompt);
+                // 패널에서 적용할 때와 동일하게 프롬프트를 교체한다
+                s.prompt = String(style.positive ?? '');
+                s.negative = String(style.negative ?? '');
+                s.appliedStyle = { id: style.id, name: style.name, positive: style.positive, negative: style.negative };
                 Object.assign(s, style.params ?? {});
                 persistState();
                 return style.name;
