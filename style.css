@@ -111,15 +111,9 @@
 .ss-page { display: none; }
 .ss-page.active { display: block; }
 
-/* ── 레이아웃 ── */
+/* ── 레이아웃 ── (사이드 칼럼 없이 한 줄로) */
 .ss-cols { display: flex; gap: var(--ss-gap); align-items: flex-start; }
 .ss-col-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: var(--ss-gap); }
-.ss-col-side { flex: 0 0 210px; display: flex; flex-direction: column; gap: 6px; }
-
-@media (max-width: 900px) {
-    .ss-cols { flex-direction: column; }
-    .ss-col-side { flex: 1 1 auto; width: 100%; }
-}
 
 .ss-row { display: flex; align-items: center; gap: 6px; }
 .ss-wrap { flex-wrap: wrap; }
@@ -264,20 +258,41 @@
 .ss-generate > * { pointer-events: none; }
 #ss_root .menu_button { touch-action: manipulation; }
 
+/* 테마 강조색에 기대면 어두운 테마에서 글자가 묻히거나 버튼이 안 보인다.
+   여기서는 배경·글자색을 직접 정해 대비를 보장한다. */
 .ss-generate {
     flex: 1 1 auto;
     min-height: 48px;
     font-size: 1.05em !important;
     font-weight: 700;
-    background: var(--ss-accent) !important;
-    color: #10131a !important;
+    background: linear-gradient(135deg, #5b6bd6 0%, #7a5ad1 100%) !important;
+    color: #ffffff !important;
     border: none !important;
     border-radius: 10px !important;
     gap: 8px !important;
+    box-shadow: 0 2px 10px rgba(91, 107, 214, 0.35);
+    text-shadow: none;
 }
-.ss-generate:hover { filter: brightness(1.08); }
+.ss-generate:hover { filter: brightness(1.12); }
+.ss-generate i { color: #ffffff !important; }
 .ss-generate.disabled { opacity: 0.6; }
-.ss-generate.ss-busy { background: #f0ad4e !important; }
+.ss-generate.ss-busy {
+    background: linear-gradient(135deg, #e0912f 0%, #d9772f 100%) !important;
+    box-shadow: 0 2px 10px rgba(224, 145, 47, 0.35);
+}
+
+/* 팝업 컨트롤 줄로 옮기지 못했을 때 — 화면 아래에 띄워서 항상 보이게 한다.
+   (그냥 두면 긴 패널 맨 끝에 붙어 있어 끝까지 스크롤해야 나온다) */
+.ss-actionbar.ss-floating {
+    position: fixed;
+    left: 14px; right: 14px; bottom: 14px;
+    z-index: 10060;
+    padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+    border: 1px solid var(--ss-border);
+    border-radius: 14px;
+    background: var(--SmartThemeBlurTintColor, #1b1e26);
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55);
+}
 .ss-generate.ss-busy .ss-generate-label::after { content: ' (클릭하면 중단)'; font-size: 0.8em; font-weight: 400; }
 
 
@@ -362,17 +377,6 @@
 
 .ss-stage-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .ss-stage-actions .menu_button { flex: 1 1 auto; gap: 4px !important; }
-
-/* ── 사이드 ── */
-.ss-side-title { font-size: 0.8em; font-weight: 600; opacity: 0.7; margin-top: 4px; }
-.ss-quick-styles { display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow-y: auto; }
-.ss-quick-style {
-    display: flex; align-items: center; gap: 6px; cursor: pointer;
-    padding: 4px; border-radius: 6px; font-size: 0.82em;
-}
-.ss-quick-style:hover { background: rgba(255, 255, 255, 0.08); }
-.ss-quick-style img, .ss-quick-style .ss-style-nothumb { width: 32px; height: 32px; border-radius: 4px; object-fit: cover; }
-.ss-quick-style span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .ss-recent {
     display: grid;
@@ -641,16 +645,6 @@ body.ss-panel-open #toast-container > div { opacity: 0.97; }
     .ss-char-main { flex-direction: column; }
     .ss-char-pos { flex-wrap: wrap; }
     .ss-char-pos input[type="range"] { flex: 1 1 80px; }
-
-    /* 빠른 그림체: 가로 스크롤 대신 줄바꿈 그리드 */
-    .ss-col-side { flex-direction: column; }
-    .ss-quick-styles {
-        display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
-        gap: 6px; max-height: none; overflow: visible;
-    }
-    .ss-quick-style { flex-direction: column; width: auto; text-align: center; padding: 2px; }
-    .ss-quick-style img, .ss-quick-style .ss-style-nothumb { width: 100%; height: auto; aspect-ratio: 1/1; }
-    .ss-quick-style span { width: 100%; font-size: 0.85em; }
 
     /* 목록류 1~2열 */
     .ss-style-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }

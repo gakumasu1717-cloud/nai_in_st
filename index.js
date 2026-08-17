@@ -216,12 +216,31 @@ function mountActionBar($panel, attempt = 0) {
 
     if (!$controls.length) {
         // 팝업이 아직 DOM에 붙기 전일 수 있으므로 몇 번 재시도
-        if (attempt < 5) setTimeout(() => mountActionBar($panel, attempt + 1), 60);
+        if (attempt < 5) {
+            setTimeout(() => mountActionBar($panel, attempt + 1), 60);
+            return;
+        }
+
+        // 끝내 못 찾으면 화면 아래에 띄워둔다 (패널 맨 끝에 숨어버리는 것 방지)
+        console.warn('[NaiStudio] 팝업 컨트롤 줄을 찾지 못해 생성 바를 화면 하단에 고정합니다.');
+        $bar.addClass('ss-floating');
+        updateSaveHint($panel);
+        updateSeedChip($panel);
+        updateAnlasChip($panel);
         return;
     }
 
     $controls.addClass('ss-controls-host').prepend($bar);
-    $bar.addClass('ss-in-controls');
+    $bar.addClass('ss-in-controls').removeClass('ss-floating');
+
+    // 옮겨놓고도 실제로 화면에 안 잡히면(레이아웃이 다른 ST 테마 등) 띄우기로 되돌린다
+    setTimeout(() => {
+        const rect = $bar[0]?.getBoundingClientRect();
+        if (!rect || rect.height < 8 || rect.bottom < 0 || rect.top > window.innerHeight) {
+            console.warn('[NaiStudio] 생성 바가 화면에 보이지 않아 하단 고정으로 전환합니다.');
+            $bar.addClass('ss-floating');
+        }
+    }, 300);
 
     updateSaveHint($panel);
     updateSeedChip($panel);
@@ -289,7 +308,6 @@ function syncUiFromState($p) {
     renderAppliedStyle($p);
     applyCollapsedState($p);
     renderCharacters($p);
-    renderQuickStyles($p);
     renderStyleGrid($p);
     renderCharPresets($p);
     renderVibes($p);
@@ -440,19 +458,13 @@ function updateReferenceSummary($p) {
     $summary.toggleClass('ss-warn', total > MAX_DIRECTOR_REFERENCES);
 }
 
-function styleCardHtml(style, compact = false) {
+function styleCardHtml(style) {
     // 값이 비어 있어도 카드가 깨지지 않게 (렌더링이 죽으면 그 목록의 버튼이 전부 먹통이 된다)
     const positive = String(style.positive ?? '');
     const thumb = style.thumb
         ? `<img src="${style.thumb}" alt="">`
         : '<div class="ss-style-nothumb"><i class="fa-solid fa-palette"></i></div>';
     const tags = (style.tags ?? []).map(t => `<span class="ss-chip">${escapeHtml(t)}</span>`).join('');
-
-    if (compact) {
-        return `<div class="ss-quick-style" data-id="${style.id}" title="${escapeHtml(style.name)}">
-            ${thumb}<span>${escapeHtml(style.name)}</span>
-        </div>`;
-    }
 
     return `<div class="ss-style-card" data-id="${style.id}">
         <div class="ss-style-thumb">${thumb}
@@ -464,22 +476,12 @@ function styleCardHtml(style, compact = false) {
             <div class="ss-style-prompt" title="${escapeHtml(positive)}">${escapeHtml(positive.slice(0, 120))}</div>
         </div>
         <div class="ss-style-actions">
-            <div class="menu_button ss-mini ss-style-apply" title="태그·UC·파라미터·캐릭터를 한 번에 적용">적용</div>
+            <div class="menu_button ss-mini caution ss-style-del">삭제</div>
             <div class="menu_button ss-mini ss-style-edit">편집</div>
             <div class="menu_button ss-mini ss-style-dup">복제</div>
-            <div class="menu_button ss-mini caution ss-style-del">삭제</div>
+            <div class="menu_button ss-mini ss-style-apply" title="태그·UC·파라미터·캐릭터를 한 번에 적용">적용</div>
         </div>
     </div>`;
-}
-
-function renderQuickStyles($p) {
-    const styles = listStyles({ favoriteOnly: true });
-    const list = styles.length > 0 ? styles : listStyles().slice(0, 8);
-    $p.find('#ss_quick_styles').html(
-        list.length
-            ? list.map(s => styleCardHtml(s, true)).join('')
-            : '<div class="ss-empty">저장된 그림체가 없습니다.</div>',
-    );
 }
 
 function renderStyleGrid($p) {
@@ -520,10 +522,10 @@ function charPresetCardHtml(preset) {
             ${preset.uc ? `<div class="ss-style-prompt" style="opacity:.45">UC · ${escapeHtml(String(preset.uc).slice(0, 60))}</div>` : ''}
         </div>
         <div class="ss-style-actions">
-            <div class="menu_button ss-mini ss-charp-use" title="생성 탭에 이 캐릭터를 추가합니다">추가</div>
+            <div class="menu_button ss-mini caution ss-charp-del">삭제</div>
             <div class="menu_button ss-mini ss-charp-edit">편집</div>
             <div class="menu_button ss-mini ss-charp-dup">복제</div>
-            <div class="menu_button ss-mini caution ss-charp-del">삭제</div>
+            <div class="menu_button ss-mini ss-charp-use" title="생성 탭에 이 캐릭터를 추가합니다">추가</div>
         </div>
     </div>`;
 }
@@ -1113,7 +1115,6 @@ function bindPanel($p) {
             toast('success', `그림체 ${result.styles}개 · 캐릭터 ${result.charPresets}개를 가져왔습니다.`);
             renderStyleGrid($p);
             renderCharPresets($p);
-            renderQuickStyles($p);
         } catch (error) {
             toast('error', `가져오기 실패: ${error.message}`);
         }
@@ -1135,9 +1136,6 @@ function bindPanel($p) {
 
     $p.on('click', '#ss_style_import_st', () => importSillyTavernStyles($p));
 
-    $p.on('click', '.ss-quick-style', function () {
-        applyStyle($p, getStyle($(this).data('id')), 'all');
-    });
     $p.on('click', '.ss-style-apply', function () {
         applyStyle($p, getStyle($(this).closest('.ss-style-card').data('id')), 'all');
     });
@@ -1147,7 +1145,6 @@ function bindPanel($p) {
     $p.on('click', '.ss-style-dup', function () {
         duplicateStyle($(this).closest('.ss-style-card').data('id'));
         renderStyleGrid($p);
-        renderQuickStyles($p);
     });
     $p.on('click', '.ss-style-del', async function () {
         const id = $(this).closest('.ss-style-card').data('id');
@@ -1156,7 +1153,6 @@ function bindPanel($p) {
         if (!confirmed) return;
         deleteStyle(id);
         renderStyleGrid($p);
-        renderQuickStyles($p);
     });
     $p.on('click', '.ss-style-fav', function (event) {
         event.stopPropagation();
@@ -1165,7 +1161,6 @@ function bindPanel($p) {
         if (!style) return;
         upsertStyle({ id, favorite: !style.favorite });
         renderStyleGrid($p);
-        renderQuickStyles($p);
     });
 
     /* 바이브 / 레퍼런스 */
@@ -1697,7 +1692,6 @@ async function importSillyTavernStyles($p) {
     }
 
     renderStyleGrid($p);
-    renderQuickStyles($p);
     toast('success', `${candidates.length}개를 가져왔습니다.`);
 }
 
@@ -1924,7 +1918,6 @@ async function openStyleEditor($p, style) {
     });
 
     renderStyleGrid($p);
-    renderQuickStyles($p);
     toast('success', `"${saved.name}" 저장 완료`);
 }
 
