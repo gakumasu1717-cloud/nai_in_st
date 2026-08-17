@@ -1,4 +1,4 @@
-# StyleStudio
+# NaiStudio
 
 SillyTavern 안에서 쓰는 NovelAI 브라우저 + 그림체 라이브러리.
 
@@ -13,7 +13,7 @@ SillyTavern 안에서 쓰는 NovelAI 브라우저 + 그림체 라이브러리.
 이 폴더 전체를 다음 위치에 복사합니다.
 
 ```
-SillyTavern/public/scripts/extensions/third-party/StyleStudio/
+SillyTavern/public/scripts/extensions/third-party/NaiStudio/
 ```
 
 `server-plugin/` 하위는 확장 쪽에서 쓰지 않으므로 남겨둬도 무방합니다.
@@ -23,8 +23,8 @@ SillyTavern/public/scripts/extensions/third-party/StyleStudio/
 없어도 동작하지만, **캐릭터 프롬프트 / Vibe Transfer / cfg_rescale / 시드 고정**을 쓰려면 필요합니다.
 
 ```
-SillyTavern/plugins/stylestudio/index.mjs      ← server-plugin/index.mjs
-SillyTavern/plugins/stylestudio/package.json   ← server-plugin/package.json
+SillyTavern/plugins/naistudio/index.mjs      ← server-plugin/index.mjs
+SillyTavern/plugins/naistudio/package.json   ← server-plugin/package.json
 ```
 
 그리고 `config.yaml` 에서:
@@ -33,13 +33,13 @@ SillyTavern/plugins/stylestudio/package.json   ← server-plugin/package.json
 enableServerPlugins: true
 ```
 
-ST를 재시작한 뒤 패널 우상단 배지가 `백엔드: StyleStudio 플러그인` 이면 정상입니다.
+ST를 재시작한 뒤 패널 우상단 배지가 `백엔드: NaiStudio 플러그인` 이면 정상입니다.
 
 ## 백엔드 3단 폴백
 
 | 순서 | 경로 | 지원 범위 |
 | --- | --- | --- |
-| 1 | `/api/plugins/stylestudio/generate-image` | 전부 (캐릭터·바이브·레퍼런스·rescale·시드) |
+| 1 | `/api/plugins/naistudio/generate-image` | 전부 (캐릭터·바이브·레퍼런스·rescale·시드) |
 | 2 | `/api/plugins/autopic/generate-image` | 거의 전부 (AutoPic 서버 플러그인 재사용) |
 | 3 | `/api/novelai/generate-image` | 기본 파라미터만. 캐릭터 프롬프트·바이브는 무시됨 |
 
@@ -55,7 +55,9 @@ image가 없으면 아무것도 바꾸지 않고 400을 돌려주므로 안전�
 ## 기능
 
 ### 그림체 저장/불러오기
-- 이미지 드롭 → 메타데이터 파싱 → `그림체로 저장`
+- 그림체 탭의 **`이미지로 추가`** 버튼 = 사진을 고르면 메타데이터를 읽어 바로 그림체 편집기가 열립니다.
+  (`JSON 가져오기`는 다른 기기에서 내보낸 그림체 묶음을 불러올 때 씁니다)
+- 생성 탭에 이미지를 드롭해서 `그림체로 저장` 해도 됩니다
 - 카드 그리드에서 검색/태그 필터/즐겨찾기
 - `적용` 하나로 태그·UC·파라미터·캐릭터·소스를 한 번에 불러옵니다.
   (guidance 같은 파라미터가 그림체마다 다르므로 태그만 따로 적용하는 버튼은 없앴습니다)
@@ -67,7 +69,7 @@ image가 없으면 아무것도 바꾸지 않고 400을 돌려주므로 안전�
 
 ### 캐릭터 위치
 NovelAI 공식 클라이언트는 캐릭터 좌표로 **5×5 격자(0.1 / 0.3 / 0.5 / 0.7 / 0.9)** 만 사용합니다.
-그래서 StyleStudio도 같은 격자 선택기를 쓰고, 저장돼 있던 임의의 값(예: 0.35)은 전송 직전과
+그래서 NaiStudio도 같은 격자 선택기를 쓰고, 저장돼 있던 임의의 값(예: 0.35)은 전송 직전과
 서버 양쪽에서 가장 가까운 격자점으로 스냅합니다. `위치 지정` 체크를 끄면 좌표를 보내지 않고
 NAI가 알아서 배치합니다(`use_coords: false`).
 
@@ -75,6 +77,9 @@ NAI가 알아서 배치합니다(`use_coords: false`).
 - NovelAI `tEXt`/`iTXt`/`zTXt` (Comment JSON, v4 char_captions + centers 포함)
 - NovelAI **stealth** 알파채널 LSB (tEXt가 제거된 이미지)
 - A1111 `parameters`, ComfyUI workflow(프롬프트 회수 수준)
+
+읽지 못했을 때는 **왜 못 읽었는지** 알려줍니다 — PNG가 아닌 경우(사진 앱·메신저를 거치며 JPEG로 변환되면
+NovelAI 정보가 사라집니다), PNG지만 텍스트 청크가 지워진 경우, 형식이 다른 경우를 구분해서 표시합니다.
 
 ### 뷰어
 생성 결과는 패널 위쪽 대형 뷰어에 바로 크게 뜹니다. NAI 브라우저와 비슷한 동작:
@@ -140,14 +145,14 @@ Vibe / Director Reference는 접어도 **사용 체크박스는 헤더에 남아
 
 | 커맨드 | 설명 |
 | --- | --- |
-| `/ssopen` | 패널 열기 |
-| `/ssstyle 이름` | 저장된 그림체를 현재 상태에 적용 |
+| `/naiopen` | 패널 열기 |
+| `/naistyle 이름` | 저장된 그림체를 현재 상태에 적용 |
 
 ## Anlas(유료 크레딧) 아끼기
 
 **중요**: SillyTavern 기본 이미지생성 확장의 `Avoid Anlas cost` 설정은 **그 확장 안에서만** 동작합니다.
 ST 서버 엔드포인트(`src/endpoints/novelai.js`)에는 anlas 관련 로직이 전혀 없고, steps/해상도를 그대로 NAI에 넘깁니다.
-StyleStudio는 SD 확장을 거치지 않으므로 **ST의 가드가 적용되지 않습니다.** 그래서 자체 가드를 넣었습니다.
+NaiStudio는 SD 확장을 거치지 않으므로 **ST의 가드가 적용되지 않습니다.** 그래서 자체 가드를 넣었습니다.
 
 설정 탭의 `Anlas 아끼기`(기본 켜짐)를 켜면 생성 직전에 무료 조건으로 낮춥니다.
 
@@ -166,11 +171,11 @@ StyleStudio는 SD 확장을 거치지 않으므로 **ST의 가드가 적용되�
 **채팅방을 열어뒀든 아니든 항상 같은 곳**에 저장됩니다.
 
 ```
-user/images/StyleStudio/ss_<시드>_<타임스탬프>.png
+user/images/NaiStudio/ss_<시드>_<타임스탬프>.png
 ```
 
 폴더 이름은 설정 탭에서 바꿀 수 있습니다. ST의 이미지 저장 API는 원래 캐릭터 이름으로 폴더를 나누지만,
-StyleStudio는 채팅 상태와 무관하게 고정 폴더 하나만 씁니다.
+NaiStudio는 채팅 상태와 무관하게 고정 폴더 하나만 씁니다.
 
 - **자동 저장(기본 켜짐)**: 생성 즉시 파일로 떨어집니다. 패널을 닫아도 남습니다.
 - **채팅 삽입**: 이미 저장된 그 파일을 참조하므로 사본이 생기지 않습니다.
@@ -180,7 +185,7 @@ StyleStudio는 채팅 상태와 무관하게 고정 폴더 하나만 씁니다.
 
 ## 데이터 위치
 
-모든 설정·그림체·히스토리는 `extension_settings.StyleStudio` 에 저장되어 ST 설정과 함께 서버에 남습니다.
+모든 설정·그림체·히스토리는 `extension_settings.NaiStudio` 에 저장되어 ST 설정과 함께 서버에 남습니다.
 썸네일은 192px webp로 축소해 저장하지만, 그림체가 많아지면 설정 파일이 커질 수 있습니다.
 바이브 이미지 원본(base64)은 그림체에 "소스 포함"으로 저장할 때만 들어갑니다.
 

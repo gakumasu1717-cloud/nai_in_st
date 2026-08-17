@@ -217,12 +217,16 @@
             <select id="ss_style_tag_filter" class="text_pole"><option value="">모든 태그</option></select>
             <label class="ss-checkline"><input type="checkbox" id="ss_style_fav_only"> 즐겨찾기만</label>
             <div class="ss-spacer"></div>
-            <div class="menu_button ss-mini" id="ss_style_new"><i class="fa-solid fa-plus"></i> 새 그림체</div>
+            <div class="menu_button ss-mini ss-primary" id="ss_style_from_image" title="이미지를 골라 메타데이터를 읽고 그림체로 등록합니다">
+                <i class="fa-solid fa-image"></i> 이미지로 추가
+            </div>
+            <input type="file" id="ss_style_image_input" accept="image/*" class="ss-file-input">
+            <div class="menu_button ss-mini" id="ss_style_new"><i class="fa-solid fa-plus"></i> 빈 그림체</div>
             <div class="menu_button ss-mini" id="ss_style_import_st" title="SillyTavern 이미지생성 확장에 저장된 스타일을 그림체로 가져옵니다">
                 <i class="fa-solid fa-download"></i> ST 스타일
             </div>
-            <div class="menu_button ss-mini" id="ss_style_export"><i class="fa-solid fa-file-export"></i> 내보내기</div>
-            <div class="menu_button ss-mini" id="ss_style_import"><i class="fa-solid fa-file-import"></i> 가져오기</div>
+            <div class="menu_button ss-mini" id="ss_style_export"><i class="fa-solid fa-file-export"></i> JSON 내보내기</div>
+            <div class="menu_button ss-mini" id="ss_style_import"><i class="fa-solid fa-file-import"></i> JSON 가져오기</div>
             <input type="file" id="ss_style_import_input" accept="application/json" class="ss-file-input">
         </div>
         <div id="ss_style_grid" class="ss-style-grid"></div>
@@ -289,7 +293,7 @@
             <div class="ss-row ss-wrap">
                 <select id="ss_backend_select" class="text_pole">
                     <option value="auto">자동 (자체 → autopic → ST 기본)</option>
-                    <option value="stylestudio">StyleStudio 서버 플러그인</option>
+                    <option value="naistudio">NaiStudio 서버 플러그인</option>
                     <option value="autopic">AutoPic 서버 플러그인</option>
                     <option value="native">ST 기본 NovelAI</option>
                 </select>
@@ -302,11 +306,11 @@
             <div class="ss-section-title"><span>저장 위치</span></div>
             <label class="ss-checkline"><input type="checkbox" id="ss_auto_save"> 생성하면 바로 파일로 저장</label>
             <label class="ss-row">폴더 이름
-                <input type="text" id="ss_save_folder" class="text_pole" placeholder="StyleStudio">
+                <input type="text" id="ss_save_folder" class="text_pole" placeholder="NaiStudio">
             </label>
             <div class="ss-hint">
                 채팅방을 열어뒀든 안 열어뒀든 <b>항상 같은 곳</b>에 저장됩니다:
-                <code id="ss_save_path">user/images/StyleStudio/</code><br>
+                <code id="ss_save_path">user/images/NaiStudio/</code><br>
                 채팅에 삽입할 때도 이미 저장된 파일을 그대로 참조하므로 사본이 생기지 않습니다.
                 끄면 패널을 닫는 순간 이번 세션 이미지는 사라집니다.
             </div>
@@ -320,7 +324,7 @@
                 Opus 구독의 무료 생성 조건은 <b>1,048,576픽셀 이하</b>(예: 1024×1024, 832×1216) + <b>steps 28 이하</b> + 1장입니다.
                 업스케일과 v4 Vibe 인코딩은 별도로 Anlas를 씁니다.<br>
                 <b>주의:</b> SillyTavern 기본 이미지생성 확장의 "Avoid Anlas cost" 설정은 그 확장 안에서만 동작하고
-                StyleStudio 생성에는 적용되지 않습니다. 이 옵션이 그 역할을 대신합니다.
+                NaiStudio 생성에는 적용되지 않습니다. 이 옵션이 그 역할을 대신합니다.
             </div>
             <label class="ss-row">히스토리 보관 수
                 <input type="number" id="ss_keep_history" class="text_pole ss-num" min="0" max="200">
@@ -366,7 +370,7 @@
             <div class="ss-section-title"><span>데이터</span></div>
             <div class="ss-row ss-wrap">
                 <div class="menu_button ss-mini" id="ss_history_clear">히스토리 비우기</div>
-                <div class="menu_button ss-mini caution" id="ss_reset_all">모든 StyleStudio 설정 초기화</div>
+                <div class="menu_button ss-mini caution" id="ss_reset_all">모든 NaiStudio 설정 초기화</div>
             </div>
         </div>
     </div>

@@ -1,5 +1,5 @@
 {
-    "name": "stylestudio-nai-bridge",
+    "name": "naistudio-nai-bridge",
     "version": "0.1.0",
     "type": "module",
     "main": "index.mjs"

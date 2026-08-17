@@ -1,14 +1,14 @@
 /**
- * StyleStudio - SillyTavern 서버 플러그인
+ * NaiStudio - SillyTavern 서버 플러그인
  *
  * 설치:
- *   1. 이 폴더(server-plugin)의 내용을 SillyTavern/plugins/stylestudio/ 로 복사
+ *   1. 이 폴더(server-plugin)의 내용을 SillyTavern/plugins/naistudio/ 로 복사
  *   2. config.yaml 에서 enableServerPlugins: true
  *   3. ST 재시작
  *
  * 제공 라우트:
- *   GET  /api/plugins/stylestudio/ping
- *   POST /api/plugins/stylestudio/generate-image
+ *   GET  /api/plugins/naistudio/ping
+ *   POST /api/plugins/naistudio/generate-image
  *
  * ST 기본 NovelAI 엔드포인트가 못 넘기는 것들을 여기서 처리한다:
  *   cfg_rescale, v4 character prompts(+ 개별 UC, 좌표), vibe transfer 인코딩,
@@ -47,9 +47,9 @@ function loadCache() {
         for (const entry of raw.entries ?? []) {
             if (entry?.key && entry?.encoded) vibeCache.set(entry.key, entry.encoded);
         }
-        console.info(`[StyleStudio] vibe 캐시 ${vibeCache.size}건 로드`);
+        console.info(`[NaiStudio] vibe 캐시 ${vibeCache.size}건 로드`);
     } catch (error) {
-        console.warn('[StyleStudio] vibe 캐시 로드 실패:', error?.message ?? error);
+        console.warn('[NaiStudio] vibe 캐시 로드 실패:', error?.message ?? error);
     }
 }
 
@@ -60,7 +60,7 @@ function saveCache() {
             .map(([key, encoded]) => ({ key, encoded }));
         fs.writeFileSync(CACHE_FILE, JSON.stringify({ entries }), 'utf-8');
     } catch (error) {
-        console.warn('[StyleStudio] vibe 캐시 저장 실패:', error?.message ?? error);
+        console.warn('[NaiStudio] vibe 캐시 저장 실패:', error?.message ?? error);
     }
 }
 
@@ -129,7 +129,7 @@ async function fetchWithRetry(url, options) {
             return { result, errorText };
         }
 
-        console.warn(`[StyleStudio] NAI 생성 잠김, ${RETRY_DELAYS_MS[attempt]}ms 후 재시도 (${attempt + 1}/${RETRY_DELAYS_MS.length})`);
+        console.warn(`[NaiStudio] NAI 생성 잠김, ${RETRY_DELAYS_MS[attempt]}ms 후 재시도 (${attempt + 1}/${RETRY_DELAYS_MS.length})`);
         await sleep(RETRY_DELAYS_MS[attempt]);
     }
     throw new Error('재시도 루프 이탈');
@@ -159,8 +159,8 @@ async function encodeVibe(imageB64, model, key) {
 }
 
 export const info = {
-    id: 'stylestudio',
-    name: 'StyleStudio NAI Bridge',
+    id: 'naistudio',
+    name: 'NaiStudio NAI Bridge',
     description: 'NovelAI 생성 프록시 — cfg_rescale, v4 캐릭터 프롬프트, vibe transfer, director reference 지원.',
 };
 
@@ -214,7 +214,7 @@ export async function init(router) {
                         encodedInfo.push(typeof rawInfo[i] === 'number' ? rawInfo[i] : 1.0);
                         encodedStrength.push(typeof rawStrength[i] === 'number' ? rawStrength[i] : 0.6);
                     } catch (error) {
-                        console.warn(`[StyleStudio] vibe #${i + 1} 인코딩 실패:`, error?.message ?? error);
+                        console.warn(`[NaiStudio] vibe #${i + 1} 인코딩 실패:`, error?.message ?? error);
                         failures.push(i + 1);
                     }
                 }
@@ -283,7 +283,7 @@ export async function init(router) {
             const basePrompt = String(body.prompt ?? '').trim();
             const baseNegative = String(body.negative_prompt ?? '').trim();
 
-            console.debug(`[StyleStudio] generate | model=${model} ${width}x${height} seed=${seed} chars=${characters.length} vibe=${vibeImages.length} ref=${usableReferences.length}`);
+            console.debug(`[NaiStudio] generate | model=${model} ${width}x${height} seed=${seed} chars=${characters.length} vibe=${vibeImages.length} ref=${usableReferences.length}`);
 
             const { result, errorText } = await fetchWithRetry(`${IMAGE_NOVELAI}/ai/generate-image`, {
                 method: 'POST',
@@ -351,7 +351,7 @@ export async function init(router) {
             });
 
             if (!result.ok) {
-                console.warn('[StyleStudio] NAI 오류:', result.status, errorText);
+                console.warn('[NaiStudio] NAI 오류:', result.status, errorText);
                 if (isConcurrentLock(result.status, errorText) || result.status === 429) {
                     return response.status(429).json({
                         ok: false,
@@ -387,23 +387,23 @@ export async function init(router) {
                     const upscaled = await extractFileFromZipBuffer(await upscaleResult.arrayBuffer(), '.png');
                     if (upscaled) image = upscaled.toString('base64');
                 } catch (error) {
-                    console.warn('[StyleStudio] 업스케일 실패, 원본 반환:', error?.message ?? error);
+                    console.warn('[NaiStudio] 업스케일 실패, 원본 반환:', error?.message ?? error);
                     warning = warning || '업스케일에 실패해서 원본을 반환했습니다.';
                 }
             }
 
-            response.setHeader('X-StyleStudio-Seed', String(seed));
+            response.setHeader('X-NaiStudio-Seed', String(seed));
             return response.json({ ok: true, image, seed: String(seed), warning: warning || undefined });
         } catch (error) {
-            console.error('[StyleStudio] 프록시 오류:', error);
+            console.error('[NaiStudio] 프록시 오류:', error);
             return response.status(500).json({ ok: false, message: error?.message ?? String(error) });
         }
     });
 
-    console.log('[StyleStudio] 서버 플러그인 로드됨: /api/plugins/stylestudio/');
+    console.log('[NaiStudio] 서버 플러그인 로드됨: /api/plugins/naistudio/');
 }
 
 export async function exit() {
     saveCache();
-    console.log('[StyleStudio] 서버 플러그인 종료');
+    console.log('[NaiStudio] 서버 플러그인 종료');
 }

@@ -1,5 +1,5 @@
 /**
- * StyleStudio — SillyTavern 안의 NAI 브라우저
+ * NaiStudio — SillyTavern 안의 NAI 브라우저
  *
  *  · 이미지를 드롭하면 PNG 메타데이터를 읽어 프롬프트/UC/캐릭터/파라미터를 그대로 복원
  *  · 그 상태를 "그림체"로 저장해두고 언제든 다시 꺼내 씀
@@ -93,9 +93,9 @@ function persistState() {
 
 /* ══════════════════════════ 유틸 ══════════════════════════ */
 
-function toast(type, message, title = 'StyleStudio') {
+function toast(type, message, title = 'NaiStudio') {
     if (typeof toastr !== 'undefined') toastr[type](message, title);
-    else console.log(`[StyleStudio] ${message}`);
+    else console.log(`[NaiStudio] ${message}`);
 }
 
 function dataUrl(base64) {
@@ -284,7 +284,7 @@ function syncUiFromState($p) {
     $p.find('#ss_auto_normalize').prop('checked', settings.autoNormalize !== false);
     $p.find('#ss_anlas_guard').prop('checked', settings.anlasGuard !== false);
     $p.find('#ss_auto_save').prop('checked', settings.autoSave !== false);
-    $p.find('#ss_save_folder').val(settings.saveFolder ?? 'StyleStudio');
+    $p.find('#ss_save_folder').val(settings.saveFolder ?? 'NaiStudio');
     $p.find('#ss_keep_history').val(settings.keepHistory ?? 40);
     $p.find('#ss_wildcards').val(wildcardsToText(getWildcards()));
     updateSaveHint($p);
@@ -466,6 +466,8 @@ function updateReferenceSummary($p) {
 }
 
 function styleCardHtml(style, compact = false) {
+    // 값이 비어 있어도 카드가 깨지지 않게 (렌더링이 죽으면 그 목록의 버튼이 전부 먹통이 된다)
+    const positive = String(style.positive ?? '');
     const thumb = style.thumb
         ? `<img src="${style.thumb}" alt="">`
         : '<div class="ss-style-nothumb"><i class="fa-solid fa-palette"></i></div>';
@@ -484,7 +486,7 @@ function styleCardHtml(style, compact = false) {
         <div class="ss-style-body">
             <div class="ss-style-name">${escapeHtml(style.name)}</div>
             <div class="ss-style-tags">${tags}</div>
-            <div class="ss-style-prompt" title="${escapeHtml(style.positive)}">${escapeHtml(style.positive.slice(0, 120))}</div>
+            <div class="ss-style-prompt" title="${escapeHtml(positive)}">${escapeHtml(positive.slice(0, 120))}</div>
         </div>
         <div class="ss-style-actions">
             <div class="menu_button ss-mini ss-style-apply" title="태그·UC·파라미터·캐릭터를 한 번에 적용">적용</div>
@@ -629,7 +631,7 @@ function renderGallery($p) {
 /** 생성 바 / 설정 탭에 "어디에 저장되는지"를 항상 보여준다 */
 function updateSaveHint($p) {
     const settings = getSettings();
-    const folder = settings.saveFolder ?? 'StyleStudio';
+    const folder = settings.saveFolder ?? 'NaiStudio';
     const path = `user/images/${folder}/`;
 
     $p.find('#ss_save_path').text(path);
@@ -673,7 +675,7 @@ async function refreshBackendStatus($p) {
     const settings = getSettings();
     const [own, autopic] = await Promise.all([pingOwnPlugin(), probeAutopicPlugin()]);
 
-    const active = own ? 'StyleStudio 플러그인'
+    const active = own ? 'NaiStudio 플러그인'
         : autopic === true ? 'AutoPic 플러그인'
         : 'ST 기본 (제한됨)';
 
@@ -686,8 +688,8 @@ async function refreshBackendStatus($p) {
 
     const lines = [
         own
-            ? '✅ <b>StyleStudio 플러그인</b> 감지됨 — 캐릭터 프롬프트·바이브·레퍼런스·시드 전부 사용 가능'
-            : '⬜ StyleStudio 플러그인 없음',
+            ? '✅ <b>NaiStudio 플러그인</b> 감지됨 — 캐릭터 프롬프트·바이브·레퍼런스·시드 전부 사용 가능'
+            : '⬜ NaiStudio 플러그인 없음',
         autopic === true
             ? '✅ <b>AutoPic 플러그인</b> 감지됨 — 자체 플러그인이 없어도 캐릭터 프롬프트·바이브 사용 가능'
             : autopic === null
@@ -696,7 +698,7 @@ async function refreshBackendStatus($p) {
     ];
 
     if (!own) {
-        lines.push('설치하려면 <code>plugins/stylestudio/</code> 에 server-plugin 내용을 복사하고 config.yaml 의 <code>enableServerPlugins: true</code>');
+        lines.push('설치하려면 <code>plugins/naistudio/</code> 에 server-plugin 내용을 복사하고 config.yaml 의 <code>enableServerPlugins: true</code>');
     }
 
     $p.find('#ss_backend_detail').html(lines.join('<br>'));
@@ -913,7 +915,34 @@ function bindPanel($p) {
     /* 그림체 목록 */
     $p.on('input change', '#ss_style_search, #ss_style_tag_filter, #ss_style_fav_only', () => renderStyleGrid($p));
     $p.on('click', '#ss_style_new', () => openStyleEditor($p, null));
-    $p.on('click', '#ss_style_export', () => downloadText(exportStyles(), 'stylestudio-styles.json'));
+
+    // 이미지 → 메타데이터 → 그림체 편집기 (그림체 탭에서 바로)
+    $p.on('click', '#ss_style_from_image', () => openFilePicker($p, $p.find('#ss_style_image_input')));
+    $p.on('change', '#ss_style_image_input', async function () {
+        const file = this.files?.[0];
+        this.value = '';
+        if (!file) return;
+
+        const loaded = await handleMetadataFile($p, file, { silent: true });
+        if (!loaded) return;
+
+        // 메타데이터가 없으면 빈 편집기를 띄우지 않고 여기서 끝낸다
+        if (!loaded.meta.found) {
+            toast('warning', metadataFailureReason(loaded.meta, file), '메타데이터 없음');
+            return;
+        }
+
+        const meta = loaded.meta;
+        openStyleEditor($p, {
+            name: file.name.replace(/\.[^.]+$/, ''),
+            positive: meta.prompt ?? '',
+            negative: meta.negative ?? '',
+            params: metaToParams(meta),
+            characters: meta.characters ?? [],
+            thumb: loaded.thumb,
+        });
+    });
+    $p.on('click', '#ss_style_export', () => downloadText(exportStyles(), 'naistudio-styles.json'));
     $p.on('click', '#ss_style_import', () => openFilePicker($p, $p.find('#ss_style_import_input')));
     $p.on('change', '#ss_style_import_input', async function () {
         const file = this.files?.[0];
@@ -1068,7 +1097,7 @@ function bindPanel($p) {
         updateSaveHint($p);
     });
     $p.on('change', '#ss_save_folder', function () {
-        const folder = String($(this).val() ?? '').trim().replace(/[\\/:*?"<>|]/g, '') || 'StyleStudio';
+        const folder = String($(this).val() ?? '').trim().replace(/[\\/:*?"<>|]/g, '') || 'NaiStudio';
         getSettings().saveFolder = folder;
         $(this).val(folder);
         save();
@@ -1108,7 +1137,7 @@ function bindPanel($p) {
         toast('success', '히스토리를 비웠습니다.');
     });
     $p.on('click', '#ss_reset_all', async () => {
-        const confirmed = await callGenericPopup('StyleStudio의 모든 설정과 저장된 그림체가 삭제됩니다. 계속할까요?', POPUP_TYPE.CONFIRM);
+        const confirmed = await callGenericPopup('NaiStudio의 모든 설정과 저장된 그림체가 삭제됩니다. 계속할까요?', POPUP_TYPE.CONFIRM);
         if (!confirmed) return;
         delete extension_settings[EXTENSION_NAME];
         state = null;
@@ -1342,8 +1371,8 @@ function metaToParams(meta) {
     return params;
 }
 
-async function handleMetadataFile($p, file) {
-    if (!file) return;
+async function handleMetadataFile($p, file, { silent = false } = {}) {
+    if (!file) return null;
 
     try {
         const meta = await extractImageMetadata(file);
@@ -1361,15 +1390,40 @@ async function handleMetadataFile($p, file) {
                 meta.seed ? `seed ${escapeHtml(meta.seed)}` : '',
                 meta.characters?.length ? `캐릭터 ${meta.characters.length}명` : '',
               ].filter(Boolean).join(' · ')
-            : '<span class="ss-warn">메타데이터를 찾지 못했습니다.</span> 이미지 자체는 바이브/레퍼런스로는 사용할 수 있습니다.';
+            : metadataFailureSummary(meta, file);
 
         $p.find('#ss_meta_thumb').attr('src', thumb || dataUrl(base64));
         $p.find('#ss_meta_summary').html(summary);
-        $p.find('#ss_meta_result').prop('hidden', false);
+        $p.find('#ss_meta_result').prop('hidden', silent);
+
+        return lastMetadata;
     } catch (error) {
-        console.error('[StyleStudio] 메타데이터 읽기 실패:', error);
+        console.error('[NaiStudio] 메타데이터 읽기 실패:', error);
         toast('error', `메타데이터 읽기 실패: ${error.message}`);
+        return null;
     }
+}
+
+/** 못 읽은 이유를 한 문장으로 (토스트용) */
+function metadataFailureReason(meta, file) {
+    const diag = meta?.diagnostics ?? {};
+
+    if (!diag.isPng) {
+        return `PNG가 아닙니다 (${diag.mime || file?.type || '?'}). 사진 앱이나 메신저를 거치며 JPEG로 바뀌면 NovelAI 정보가 사라집니다. 원본 PNG를 넣어주세요.`;
+    }
+    if ((diag.chunkKeys ?? []).length === 0) {
+        return 'PNG 안에 남아 있는 정보가 없습니다. 편집·재저장·업로드 과정에서 지워진 이미지입니다.';
+    }
+    return `NovelAI/A1111 형식이 아닙니다. 찾은 항목: ${(diag.chunkKeys ?? []).join(', ')}`;
+}
+
+/** 못 읽었을 때 "왜" 못 읽었는지 알려준다 (드롭존 표시용) */
+function metadataFailureSummary(meta, file) {
+    return [
+        '<span class="ss-warn">메타데이터를 찾지 못했습니다.</span>',
+        escapeHtml(metadataFailureReason(meta, file)),
+        '이미지 자체는 <b>바이브</b>나 <b>캐릭터 레퍼런스</b>로는 그대로 쓸 수 있습니다.',
+    ].join('<br>');
 }
 
 function applyMetadata($p, mode) {
@@ -1499,27 +1553,65 @@ async function openStyleEditor($p, style) {
             .replaceWith(`<img src="${thumb}" alt="">`);
     });
 
+    /* 입력값은 팝업이 닫히기 전에 계속 받아둔다.
+       닫힌 뒤에 $form.find(...).val() 로 읽으면, ST가 팝업 내용을 정리한 경우
+       undefined 가 들어가 그림체가 깨진 채로 저장된다(카드 렌더링이 죽어 버튼이 먹통이 됨). */
+    const values = {
+        name: draft.name ?? '',
+        note: draft.note ?? '',
+        tags: (draft.tags ?? []).join(', '),
+        positive: draft.positive ?? '',
+        negative: draft.negative ?? '',
+        withParams: Object.keys(draft.params ?? {}).length > 0,
+        withChars: (draft.characters ?? []).length > 0,
+        withSources: (draft.vibes ?? []).length > 0 || !!draft.ref?.base64,
+    };
+
+    const readForm = () => {
+        const pick = (selector, fallback) => {
+            const $el = $form.find(selector);
+            return $el.length ? $el.val() : fallback;
+        };
+        values.name = pick('.ss-e-name', values.name);
+        values.note = pick('.ss-e-note', values.note);
+        values.tags = pick('.ss-e-tags', values.tags);
+        values.positive = pick('.ss-e-positive', values.positive);
+        values.negative = pick('.ss-e-negative', values.negative);
+
+        const check = (selector, fallback) => {
+            const $el = $form.find(selector);
+            return $el.length ? $el.is(':checked') : fallback;
+        };
+        values.withParams = check('.ss-e-with-params', values.withParams);
+        values.withChars = check('.ss-e-with-chars', values.withChars);
+        values.withSources = check('.ss-e-with-sources', values.withSources);
+    };
+
+    $form.on('input change', 'input, textarea', readForm);
+
     const confirmed = await callGenericPopup($form, POPUP_TYPE.CONFIRM, '', { okButton: '저장', cancelButton: '취소', wide: true });
     if (!confirmed) return;
+
+    readForm();   // 아직 DOM이 살아 있으면 마지막 값까지 반영
 
     const current = getState();
     const saved = upsertStyle({
         id: draft.id,
-        name: $form.find('.ss-e-name').val() || '이름 없는 그림체',
-        note: $form.find('.ss-e-note').val(),
-        tags: splitTags($form.find('.ss-e-tags').val()),
-        positive: $form.find('.ss-e-positive').val(),
-        negative: $form.find('.ss-e-negative').val(),
-        params: $form.find('.ss-e-with-params').is(':checked')
+        name: String(values.name ?? '').trim() || '이름 없는 그림체',
+        note: String(values.note ?? ''),
+        tags: splitTags(values.tags),
+        positive: String(values.positive ?? ''),
+        negative: String(values.negative ?? ''),
+        params: values.withParams
             ? (Object.keys(draft.params ?? {}).length ? draft.params : styleFromCurrentState().params)
             : {},
-        characters: $form.find('.ss-e-with-chars').is(':checked')
+        characters: values.withChars
             ? ((draft.characters ?? []).length ? draft.characters : structuredClone(current.characters))
             : [],
-        vibes: $form.find('.ss-e-with-sources').is(':checked')
+        vibes: values.withSources
             ? ((draft.vibes ?? []).length ? draft.vibes : structuredClone(current.vibes))
             : [],
-        ref: $form.find('.ss-e-with-sources').is(':checked')
+        ref: values.withSources
             ? (draft.ref?.base64 ? draft.ref : structuredClone(current.ref))
             : null,
         thumb,
@@ -1599,7 +1691,7 @@ function setBusy($p, busy, text = '') {
     const $button = bar($p, '#ss_generate');
     if (!$button.length) {
         // 여기 걸리면 바 참조가 끊긴 것 — 상태 표시가 통째로 죽는다
-        console.warn('[StyleStudio] 생성 바를 찾지 못해 상태 표시를 갱신하지 못했습니다.');
+        console.warn('[NaiStudio] 생성 바를 찾지 못해 상태 표시를 갱신하지 못했습니다.');
     }
 
     $button.toggleClass('ss-busy', busy);
@@ -1697,7 +1789,7 @@ async function runGenerate($p) {
                 try {
                     item.path = await saveImageToServer(item.base64, `ss_${item.seed || 'img'}`, settings.saveFolder);
                 } catch (error) {
-                    console.warn('[StyleStudio] 자동 저장 실패:', error);
+                    console.warn('[NaiStudio] 자동 저장 실패:', error);
                     toast('warning', `파일 저장 실패: ${error.message}`);
                 }
             }
@@ -1719,12 +1811,12 @@ async function runGenerate($p) {
             updateSeedChip($p);
 
             const saved = settings.autoSave !== false
-                ? ` · user/images/${settings.saveFolder ?? 'StyleStudio'}/ 에 저장됨`
+                ? ` · user/images/${settings.saveFolder ?? 'NaiStudio'}/ 에 저장됨`
                 : '';
             toast('success', `생성 완료 (시드 ${item.seed || '랜덤'})${saved}`);
         }
     } catch (error) {
-        console.error('[StyleStudio] 생성 실패:', error);
+        console.error('[NaiStudio] 생성 실패:', error);
         toast('error', error.message ?? String(error), '생성 실패');
     } finally {
         setBusy($p, false);
@@ -1753,7 +1845,7 @@ function downloadImage(item) {
     if (!item) return;
     const link = document.createElement('a');
     link.href = dataUrl(item.base64);
-    link.download = `stylestudio_${item.seed || Date.now()}.png`;
+    link.download = `naistudio_${item.seed || Date.now()}.png`;
     link.click();
     toast('success', '이미지를 저장했습니다.');
 }
@@ -1808,7 +1900,7 @@ function bindGallery($p) {
             }
 
             if (!isChatOpen()) {
-                toast('warning', `열려 있는 채팅이 없어 삽입은 못 했습니다. 파일은 user/images/${settings.saveFolder ?? 'StyleStudio'}/ 에 저장돼 있습니다.`);
+                toast('warning', `열려 있는 채팅이 없어 삽입은 못 했습니다. 파일은 user/images/${settings.saveFolder ?? 'NaiStudio'}/ 에 저장돼 있습니다.`);
                 return;
             }
 
@@ -1915,7 +2007,7 @@ function createSettingsDrawer() {
         <div id="ss_settings_container" class="extension_container">
             <div class="inline-drawer">
                 <div class="inline-drawer-toggle inline-drawer-header">
-                    <b>StyleStudio</b>
+                    <b>NaiStudio</b>
                     <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
                 </div>
                 <div class="inline-drawer-content">
@@ -1937,7 +2029,7 @@ function createSettingsDrawer() {
     $('#ss_open_panel').on('click', openPanelFromEvent);
     $('#ss_drawer_export').on('click', (event) => {
         event.preventDefault();
-        downloadText(exportStyles(), 'stylestudio-styles.json');
+        downloadText(exportStyles(), 'naistudio-styles.json');
     });
 
     updateDrawer();
@@ -1955,9 +2047,9 @@ function addWandMenuItem() {
     if ($('#ss_wand_item').length) return;
 
     const $item = $(`
-        <div id="ss_wand_item" class="list-group-item flex-container flexGap5" title="StyleStudio 열기">
+        <div id="ss_wand_item" class="list-group-item flex-container flexGap5" title="NaiStudio 열기">
             <div class="fa-solid fa-palette extensionsMenuExtensionButton"></div>
-            <span>StyleStudio</span>
+            <span>NaiStudio</span>
         </div>
     `);
     $item.on('click', openPanelFromEvent);
@@ -1976,13 +2068,13 @@ async function registerSlashCommands() {
         const { SlashCommandParser } = await import('../../../slash-commands/SlashCommandParser.js');
 
         SlashCommandParser.addCommandObject(SlashCommand.fromProps({
-            name: 'ssopen',
+            name: 'naiopen',
             callback: () => { openPanel(); return ''; },
-            helpString: 'StyleStudio 패널을 엽니다.',
+            helpString: 'NaiStudio 패널을 엽니다.',
         }));
 
         SlashCommandParser.addCommandObject(SlashCommand.fromProps({
-            name: 'ssstyle',
+            name: 'naistyle',
             callback: (_args, value) => {
                 const name = String(value ?? '').trim().toLowerCase();
                 const style = getSettings().styles.find(s => s.name.toLowerCase() === name);
@@ -1996,16 +2088,16 @@ async function registerSlashCommands() {
             unnamedArgumentList: [
                 SlashCommandArgument.fromProps({ description: '그림체 이름', typeList: [ARGUMENT_TYPE.STRING], isRequired: true }),
             ],
-            helpString: '저장된 그림체를 현재 StyleStudio 상태에 적용합니다.',
+            helpString: '저장된 그림체를 현재 NaiStudio 상태에 적용합니다.',
         }));
     } catch (error) {
-        console.debug('[StyleStudio] 슬래시 커맨드 등록 생략:', error?.message ?? error);
+        console.debug('[NaiStudio] 슬래시 커맨드 등록 생략:', error?.message ?? error);
     }
 }
 
 /** manifest의 css 로딩이 안 된 경우를 대비한 보험 */
 function ensureStyles() {
-    if ($('link[href*="StyleStudio/style.css"]').length) return;
+    if ($('link[href*="NaiStudio/style.css"]').length) return;
     $('head').append(`<link rel="stylesheet" href="${extensionFolderPath}/style.css">`);
 }
 
@@ -2021,11 +2113,11 @@ jQuery(async () => {
         updateDrawer();
     });
 
-    console.log('[StyleStudio] 로드 완료');
+    console.log('[NaiStudio] 로드 완료');
 });
 
 // 디버깅/외부 연동용
-window.StyleStudio = {
+window.NaiStudio = {
     open: openPanel,
     getState,
     getSettings,
