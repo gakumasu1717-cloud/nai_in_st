@@ -13,8 +13,8 @@ import {
 } from './lib/st.js';
 import {
     getSettings, save, listStyles, getStyle, upsertStyle, deleteStyle, duplicateStyle,
-    allStyleTags, exportStyles, importStyles, addHistory, clearHistory, getWildcards,
-    setWildcards, makeThumbnail, blobToBase64, DEFAULT_PARAMS, EXTENSION_NAME,
+    allStyleTags, exportStyles, importStyles, addHistory, clearHistory,
+    makeThumbnail, blobToBase64, DEFAULT_PARAMS, EXTENSION_NAME,
 } from './lib/store.js';
 import {
     MODELS, SAMPLERS, SCHEDULERS, SIZE_PRESETS, BASE_TAGS, isV4Model,
@@ -29,6 +29,8 @@ import {
 } from './lib/nai-client.js';
 
 const extensionFolderPath = new URL('.', import.meta.url).pathname.replace(/\/$/, '');
+/** panel.html 캐시 무효화용 — UI를 바꿀 때 올린다 */
+const PANEL_VERSION = 2;
 
 /** 패널 작업 상태 (팝업이 닫혀도 유지) */
 let state = null;
@@ -169,7 +171,7 @@ function openPanelFromEvent(event) {
 
 async function openPanel() {
     if (!panelHtmlCache) {
-        panelHtmlCache = await $.get(`${extensionFolderPath}/panel.html`);
+        panelHtmlCache = await $.get(`${extensionFolderPath}/panel.html?v=${PANEL_VERSION}`);
     }
 
     const $panel = $(panelHtmlCache);
@@ -273,12 +275,6 @@ function syncUiFromState($p) {
     for (const [key, selector] of Object.entries(CHECK_MAP)) $p.find(selector).prop('checked', !!s[key]);
 
     $p.find('#ss_vibe_enabled').prop('checked', !!s.vibeEnabled);
-    $p.find('#ss_ref_enabled').prop('checked', !!s.ref?.enabled);
-    $p.find('#ss_ref_mode').val(s.ref?.mode ?? 'character&style');
-    $p.find('#ss_ref_strength').val(s.ref?.strength ?? 1);
-    $p.find('#ss_ref_fidelity').val(s.ref?.fidelity ?? 1);
-    $p.find('#ss_ref_strength_v').text(Number(s.ref?.strength ?? 1).toFixed(2));
-    $p.find('#ss_ref_fidelity_v').text(Number(s.ref?.fidelity ?? 1).toFixed(2));
 
     $p.find('#ss_backend_select').val(settings.backend ?? 'auto');
     $p.find('#ss_auto_normalize').prop('checked', settings.autoNormalize !== false);
@@ -286,7 +282,6 @@ function syncUiFromState($p) {
     $p.find('#ss_auto_save').prop('checked', settings.autoSave !== false);
     $p.find('#ss_save_folder').val(settings.saveFolder ?? 'NaiStudio');
     $p.find('#ss_keep_history').val(settings.keepHistory ?? 40);
-    $p.find('#ss_wildcards').val(wildcardsToText(getWildcards()));
     updateSaveHint($p);
 
     renderAppliedStyle($p);
@@ -295,7 +290,7 @@ function syncUiFromState($p) {
     renderQuickStyles($p);
     renderStyleGrid($p);
     renderVibes($p);
-    renderRef($p);
+    renderReferences($p);
     renderGallery($p);
 }
 
@@ -307,10 +302,6 @@ function readUiToState($p) {
     }
     for (const [key, selector] of Object.entries(CHECK_MAP)) s[key] = $p.find(selector).is(':checked');
     s.vibeEnabled = $p.find('#ss_vibe_enabled').is(':checked');
-    s.ref.enabled = $p.find('#ss_ref_enabled').is(':checked');
-    s.ref.mode = $p.find('#ss_ref_mode').val();
-    s.ref.strength = Number($p.find('#ss_ref_strength').val());
-    s.ref.fidelity = Number($p.find('#ss_ref_fidelity').val());
     return s;
 }
 
@@ -322,41 +313,21 @@ function renderCharacters($p) {
 
     s.characters.forEach((character, index) => {
         const center = character.center ?? defaultCenter(index, s.characters.length);
-        const ref = character.ref ?? {};
         const $card = $(`
             <div class="ss-char" data-index="${index}">
                 <div class="ss-char-head">
                     <label class="ss-checkline"><input type="checkbox" class="ss-char-enabled" ${character.enabled !== false ? 'checked' : ''}></label>
                     <input type="text" class="text_pole ss-char-name" placeholder="캐릭터 ${index + 1}" value="${escapeHtml(character.name ?? '')}">
+                    ${character.ref?.base64 ? '<span class="ss-char-refmark" title="레퍼런스 탭에서 관리합니다"><i class="fa-solid fa-user-tag"></i> 레퍼런스</span>' : ''}
                     <div class="ss-char-actions">
                         <span class="ss-linkbtn ss-char-up" title="위로"><i class="fa-solid fa-arrow-up"></i></span>
                         <span class="ss-linkbtn ss-char-down" title="아래로"><i class="fa-solid fa-arrow-down"></i></span>
                         <span class="ss-linkbtn ss-char-remove" title="삭제"><i class="fa-solid fa-trash"></i></span>
                     </div>
                 </div>
-                <div class="ss-char-main">
-                    <div class="ss-char-ref">
-                        <div class="ss-char-ref-slot ${ref.base64 ? 'has-image' : ''}" title="이 캐릭터의 레퍼런스 이미지">
-                            ${ref.base64
-                                ? `<img src="${ref.thumb || dataUrl(ref.base64)}" alt="">`
-                                : '<i class="fa-solid fa-user-plus"></i><span>레퍼런스</span>'}
-                        </div>
-                        <input type="file" class="ss-char-ref-input ss-file-input" accept="image/*">
-                        ${ref.base64 ? `
-                            <label class="ss-checkline"><input type="checkbox" class="ss-char-ref-enabled" ${ref.enabled !== false ? 'checked' : ''}> 사용</label>
-                            <label class="ss-char-ref-range">강도
-                                <input type="range" class="ss-char-ref-strength" min="0" max="1" step="0.05" value="${ref.strength ?? 1}">
-                            </label>
-                            <label class="ss-char-ref-range">유지
-                                <input type="range" class="ss-char-ref-fidelity" min="0" max="1" step="0.05" value="${ref.fidelity ?? 1}">
-                            </label>
-                            <span class="ss-linkbtn ss-char-ref-clear">비우기</span>
-                        ` : ''}
-                    </div>
-                    <div class="ss-char-texts">
-                        <textarea class="text_pole textarea_compact ss-char-prompt ss-ac" rows="2" placeholder="이 캐릭터의 태그">${escapeHtml(character.prompt ?? '')}</textarea>
-                        <textarea class="text_pole textarea_compact ss-char-uc" rows="1" placeholder="이 캐릭터 전용 UC (선택)">${escapeHtml(character.uc ?? '')}</textarea>
-                    </div>
+                <div class="ss-char-texts">
+                    <textarea class="text_pole textarea_compact ss-char-prompt ss-ac" rows="2" placeholder="이 캐릭터의 태그">${escapeHtml(character.prompt ?? '')}</textarea>
+                    <textarea class="text_pole textarea_compact ss-char-uc" rows="1" placeholder="이 캐릭터 전용 UC (선택)">${escapeHtml(character.uc ?? '')}</textarea>
                 </div>
                 <div class="ss-char-pos">
                     <span class="ss-char-pos-label">위치</span>
@@ -550,14 +521,76 @@ function renderVibes($p) {
     });
 }
 
-function renderRef($p) {
-    const ref = getState().ref;
-    const $preview = $p.find('#ss_ref_preview');
-    if (ref?.base64) {
-        $preview.attr('src', ref.thumb || dataUrl(ref.base64)).prop('hidden', false);
-    } else {
-        $preview.prop('hidden', true);
-    }
+/**
+ * 전체용 + 캐릭터별 레퍼런스를 한 목록으로 그린다.
+ * (캐릭터 카드에 흩어져 있으면 모바일에서 카드가 너무 길어진다)
+ */
+function refTargets() {
+    const s = getState();
+    return [
+        { key: 'global', label: '그림 전체', hint: '화풍·분위기 전체에 적용', ref: s.ref },
+        ...s.characters.map((character, index) => ({
+            key: String(index),
+            label: character.name?.trim() || `캐릭터 ${index + 1}`,
+            hint: character.prompt?.trim().slice(0, 40) || '태그 없음',
+            ref: character.ref,
+        })),
+    ];
+}
+
+function refSlotHtml(target) {
+    const ref = target.ref ?? {};
+    const isGlobal = target.key === 'global';
+    const has = !!ref.base64;
+
+    return `<div class="ss-refslot ${has ? 'has-image' : ''}" data-target="${target.key}">
+        <div class="ss-refslot-pic" title="${has ? '눌러서 다른 이미지로 교체' : '눌러서 이미지 선택'}">
+            ${has ? `<img src="${ref.thumb || dataUrl(ref.base64)}" alt="">` : '<i class="fa-solid fa-plus"></i>'}
+        </div>
+        <div class="ss-refslot-body">
+            <div class="ss-refslot-head">
+                <b>${isGlobal ? '<i class="fa-solid fa-image"></i> ' : '<i class="fa-solid fa-user"></i> '}${escapeHtml(target.label)}</b>
+                ${has ? `<label class="ss-checkline"><input type="checkbox" class="ss-refslot-enabled" ${ref.enabled !== false ? 'checked' : ''}> 사용</label>` : ''}
+                ${has ? '<span class="ss-linkbtn ss-refslot-clear" title="비우기"><i class="fa-solid fa-trash"></i></span>' : ''}
+            </div>
+            <div class="ss-refslot-hint">${escapeHtml(target.hint)}</div>
+            ${has ? `
+                <div class="ss-refslot-controls">
+                    ${isGlobal ? `
+                        <label>모드
+                            <select class="text_pole ss-refslot-mode">
+                                <option value="character&style"${ref.mode === 'character&style' || !ref.mode ? ' selected' : ''}>캐릭터+화풍</option>
+                                <option value="character"${ref.mode === 'character' ? ' selected' : ''}>캐릭터</option>
+                                <option value="style"${ref.mode === 'style' ? ' selected' : ''}>화풍</option>
+                            </select>
+                        </label>` : ''}
+                    <label>강도 <input type="range" class="ss-refslot-strength" min="0" max="1" step="0.05" value="${ref.strength ?? 1}"><span>${Number(ref.strength ?? 1).toFixed(2)}</span></label>
+                    <label>유지 <input type="range" class="ss-refslot-fidelity" min="0" max="1" step="0.05" value="${ref.fidelity ?? 1}"><span>${Number(ref.fidelity ?? 1).toFixed(2)}</span></label>
+                </div>` : ''}
+        </div>
+    </div>`;
+}
+
+function renderReferences($p) {
+    const targets = refTargets();
+    $p.find('#ss_ref_list').html(targets.map(refSlotHtml).join(''));
+
+    const used = targets.filter(t => t.ref?.base64 && t.ref.enabled !== false).length;
+    $p.find('#ss_ref_total')
+        .text(used ? `${used}장 사용 중${used > MAX_DIRECTOR_REFERENCES ? ` — ${MAX_DIRECTOR_REFERENCES}장 초과분 제외` : ''}` : '등록된 레퍼런스 없음')
+        .toggleClass('ss-warn', used > MAX_DIRECTOR_REFERENCES);
+
+    updateReferenceSummary($p);
+}
+
+/** 슬롯 키(global | 인덱스) → 실제 ref 객체를 읽고 쓰는 자리 */
+function refHolder(key) {
+    const s = getState();
+    if (key === 'global') return { get: () => s.ref, set: (v) => { s.ref = v; } };
+
+    const character = s.characters[Number(key)];
+    if (!character) return null;
+    return { get: () => character.ref, set: (v) => { character.ref = v; } };
 }
 
 /** 상단 대형 뷰어 (NAI 브라우저처럼 결과를 크게 보여준다) */
@@ -766,11 +799,6 @@ function bindPanel($p) {
         toast('success', '태그를 정리했습니다.');
     });
 
-    $p.on('click', '#ss_prompt_preview', () => {
-        const resolved = resolvePrompt($p.find('#ss_prompt').val(), getWildcards(), { normalize: false });
-        callGenericPopup(`<div class="ss-preview"><h3>전개 결과</h3><pre>${escapeHtml(resolved)}</pre></div>`, POPUP_TYPE.TEXT);
-    });
-
     $p.on('click', '#ss_prompt_style_merge', async () => {
         const style = await pickStyle();
         if (!style) return;
@@ -829,47 +857,6 @@ function bindPanel($p) {
         $cell.addClass('active');
         $card.find('.ss-char-pos-value').text(`${character.center.x.toFixed(1)} , ${character.center.y.toFixed(1)}`);
         persistState();
-    });
-
-    /* 캐릭터별 레퍼런스 */
-    $p.on('click', '.ss-char-ref-slot', function () {
-        openFilePicker($p, $(this).closest('.ss-char-ref').find('.ss-char-ref-input'));
-    });
-
-    $p.on('change', '.ss-char-ref-input', async function () {
-        const file = this.files?.[0];
-        this.value = '';
-        if (!file) return;
-
-        const index = Number($(this).closest('.ss-char').data('index'));
-        const character = getState().characters[index];
-        if (!character) return;
-
-        const info = await fileToImageInfo(file);
-        character.ref = { ...info, strength: 1.0, fidelity: 1.0, mode: 'character', enabled: true };
-        renderCharacters($p);
-        persistState();
-        toast('success', `캐릭터 ${index + 1} 레퍼런스를 등록했습니다.`);
-    });
-
-    $p.on('click', '.ss-char-ref-clear', function () {
-        const index = Number($(this).closest('.ss-char').data('index'));
-        const character = getState().characters[index];
-        if (!character) return;
-        character.ref = null;
-        renderCharacters($p);
-        persistState();
-    });
-
-    $p.on('input change', '.ss-char-ref-strength, .ss-char-ref-fidelity, .ss-char-ref-enabled', function () {
-        const index = Number($(this).closest('.ss-char').data('index'));
-        const ref = getState().characters[index]?.ref;
-        if (!ref) return;
-        const $card = $(this).closest('.ss-char');
-        ref.strength = Number($card.find('.ss-char-ref-strength').val());
-        ref.fidelity = Number($card.find('.ss-char-ref-fidelity').val());
-        ref.enabled = $card.find('.ss-char-ref-enabled').is(':checked');
-        updateReferenceSummary($p);
     });
 
     $p.on('click', '.ss-char-remove', function () {
@@ -1036,32 +1023,69 @@ function bindPanel($p) {
         persistState();
     });
 
-    $p.on('click', '#ss_ref_add', () => openFilePicker($p, $p.find('#ss_ref_input')));
-    $p.on('change', '#ss_ref_input', async function () {
-        const file = this.files?.[0];
-        if (!file) return;
-        const info = await fileToImageInfo(file);
-        Object.assign(getState().ref, info, { enabled: true });
-        $p.find('#ss_ref_enabled').prop('checked', true);
-        this.value = '';
-        renderRef($p);
-        persistState();
-    });
-    $p.on('click', '#ss_ref_clear', () => {
-        Object.assign(getState().ref, { base64: '', thumb: '', enabled: false });
-        $p.find('#ss_ref_enabled').prop('checked', false);
-        renderRef($p);
-        persistState();
-    });
-    $p.on('input', '#ss_ref_strength, #ss_ref_fidelity', () => {
-        readUiToState($p);
-        $p.find('#ss_ref_strength_v').text(getState().ref.strength.toFixed(2));
-        $p.find('#ss_ref_fidelity_v').text(getState().ref.fidelity.toFixed(2));
+    /* 레퍼런스 (전체 + 캐릭터별을 한 목록에서) */
+    let pendingRefTarget = null;
+
+    $p.on('click', '.ss-refslot-pic', function () {
+        pendingRefTarget = $(this).closest('.ss-refslot').data('target');
+        openFilePicker($p, $p.find('#ss_ref_input'));
     });
 
-    $p.on('change', '#ss_ref_enabled', () => {
-        readUiToState($p);
-        updateReferenceSummary($p);
+    $p.on('change', '#ss_ref_input', async function () {
+        const file = this.files?.[0];
+        this.value = '';
+        if (!file || pendingRefTarget === null) return;
+
+        const holder = refHolder(String(pendingRefTarget));
+        if (!holder) return;
+
+        const info = await fileToImageInfo(file);
+        const previous = holder.get() ?? {};
+        holder.set({
+            ...info,
+            strength: previous.strength ?? 1.0,
+            fidelity: previous.fidelity ?? 1.0,
+            mode: previous.mode ?? (pendingRefTarget === 'global' ? 'character&style' : 'character'),
+            enabled: true,
+        });
+
+        pendingRefTarget = null;
+        renderReferences($p);
+        renderCharacters($p);
+        persistState();
+        toast('success', '레퍼런스를 등록했습니다.');
+    });
+
+    $p.on('click', '.ss-refslot-clear', function () {
+        const key = String($(this).closest('.ss-refslot').data('target'));
+        const holder = refHolder(key);
+        if (!holder) return;
+
+        holder.set(key === 'global'
+            ? { enabled: false, base64: '', thumb: '', strength: 1.0, fidelity: 1.0, mode: 'character&style' }
+            : null);
+
+        renderReferences($p);
+        renderCharacters($p);
+        persistState();
+    });
+
+    $p.on('input change', '.ss-refslot input, .ss-refslot select', function () {
+        const $slot = $(this).closest('.ss-refslot');
+        const holder = refHolder(String($slot.data('target')));
+        const ref = holder?.get();
+        if (!ref) return;
+
+        ref.enabled = $slot.find('.ss-refslot-enabled').is(':checked');
+        ref.strength = Number($slot.find('.ss-refslot-strength').val());
+        ref.fidelity = Number($slot.find('.ss-refslot-fidelity').val());
+        const mode = $slot.find('.ss-refslot-mode').val();
+        if (mode) ref.mode = mode;
+
+        $slot.find('.ss-refslot-strength').next('span').text(ref.strength.toFixed(2));
+        $slot.find('.ss-refslot-fidelity').next('span').text(ref.fidelity.toFixed(2));
+        $p.find('#ss_ref_total').text('');
+        renderReferences($p);
     });
 
     /* 뷰어 + 갤러리 */
@@ -1111,27 +1135,6 @@ function bindPanel($p) {
         save();
         toast('success', '현재 파라미터를 기본값으로 저장했습니다.');
     });
-    $p.on('click', '#ss_wildcards_save', () => {
-        const map = textToWildcards($p.find('#ss_wildcards').val());
-        setWildcards(map);
-        const names = Object.keys(map);
-        toast('success', names.length
-            ? `${names.length}개 저장됨 — 프롬프트에 ${names.slice(0, 3).map(n => `__${n}__`).join(', ')} 처럼 쓰세요.`
-            : '목록을 비웠습니다.');
-    });
-
-    $p.on('click', '#ss_wildcards_example', () => {
-        const example = [
-            'lighting: soft lighting | backlighting | cinematic lighting | rim light',
-            'pose: standing | sitting | leaning forward | arms crossed',
-            'expression: smile | light smile | expressionless | surprised',
-            'background: simple background | classroom | night city | cherry blossoms',
-        ].join('\n');
-
-        const current = String($p.find('#ss_wildcards').val() ?? '').trim();
-        $p.find('#ss_wildcards').val(current ? `${current}\n${example}` : example);
-        toast('info', '예제를 넣었습니다. 저장을 누르면 적용됩니다.');
-    });
     $p.on('click', '#ss_history_clear', () => {
         clearHistory();
         toast('success', '히스토리를 비웠습니다.');
@@ -1176,7 +1179,6 @@ function tagPool() {
     for (const entry of getSettings().history) {
         for (const tag of splitTags(entry.prompt)) pool.add(tag);
     }
-    for (const name of Object.keys(getWildcards())) pool.add(`__${name}__`);
     return [...pool];
 }
 
@@ -1283,7 +1285,12 @@ function bindDropzone($p) {
         await handleMetadataFile($p, item.getAsFile());
     });
 
-    $p.on('click', '#ss_meta_close', () => $p.find('#ss_meta_result').prop('hidden', true));
+    $p.on('click', '#ss_meta_close', () => {
+        $p.find('#ss_meta_result').prop('hidden', true);
+        $p.find('#ss_meta_thumb').removeAttr('src');
+        $p.find('#ss_meta_summary').empty();
+        lastMetadata = null;
+    });
     $p.on('click', '#ss_meta_apply_all', () => applyMetadata($p, 'all'));
 
     $p.on('click', '#ss_meta_as_charref', async () => {
@@ -1522,6 +1529,32 @@ async function importSillyTavernStyles($p) {
 async function openStyleEditor($p, style) {
     const draft = style ?? { name: '', note: '', tags: [], positive: '', negative: '', params: {}, characters: [], vibes: [], ref: null, thumb: '' };
 
+    /* 무엇이 같이 저장되는지 개수까지 보여준다.
+       draft 에 없으면 지금 패널에 있는 것을 담는다 */
+    const panel = getState();
+    const draftChars = (draft.characters ?? []).filter(c => String(c?.prompt ?? '').trim());
+    const panelChars = panel.characters.filter(c => String(c?.prompt ?? '').trim());
+    const usingChars = draftChars.length ? draftChars : panelChars;
+
+    const draftSources = (draft.vibes ?? []).length + (draft.ref?.base64 ? 1 : 0);
+    const panelSources = panel.vibes.filter(v => v?.base64).length
+        + (panel.ref?.base64 ? 1 : 0)
+        + panel.characters.filter(c => c.ref?.base64).length;
+    const usingSources = draftSources || panelSources;
+
+    const hasDraftParams = Object.keys(draft.params ?? {}).length > 0;
+    const params = hasDraftParams ? draft.params : styleFromCurrentState().params;
+
+    const withParams = true;
+    const withChars = usingChars.length > 0;
+    const withSources = draftSources > 0;
+
+    const paramsLabel = `${params.model ?? ''} · ${params.width}×${params.height} · ${params.steps}steps · scale ${params.scale}`;
+    const charsLabel = usingChars.length
+        ? `${usingChars.length}명 — ${usingChars.map(c => c.name?.trim() || c.prompt.trim().slice(0, 12)).join(', ')}`
+        : '없음';
+    const sourcesLabel = usingSources ? `${usingSources}장` : '없음';
+
     const $form = $(`
         <div class="ss-editor">
             <h3>${draft.id ? '그림체 편집' : '새 그림체'}</h3>
@@ -1530,10 +1563,14 @@ async function openStyleEditor($p, style) {
             <label>메모<input type="text" class="text_pole ss-e-note" value="${escapeHtml(draft.note ?? '')}"></label>
             <label>그림체 프롬프트<textarea class="text_pole textarea_compact ss-e-positive" rows="4">${escapeHtml(draft.positive ?? '')}</textarea></label>
             <label>전용 UC<textarea class="text_pole textarea_compact ss-e-negative" rows="3">${escapeHtml(draft.negative ?? '')}</textarea></label>
-            <div class="ss-editor-row">
-                <label class="ss-checkline"><input type="checkbox" class="ss-e-with-params" ${Object.keys(draft.params ?? {}).length ? 'checked' : ''}> 파라미터 포함</label>
-                <label class="ss-checkline"><input type="checkbox" class="ss-e-with-chars" ${(draft.characters ?? []).length ? 'checked' : ''}> 캐릭터 프롬프트 포함</label>
-                <label class="ss-checkline"><input type="checkbox" class="ss-e-with-sources" ${(draft.vibes ?? []).length || draft.ref?.base64 ? 'checked' : ''}> 바이브/레퍼런스 포함</label>
+            <div class="ss-editor-opts">
+                <div class="ss-editor-opts-title">같이 저장할 것</div>
+                <label class="ss-checkline"><input type="checkbox" class="ss-e-with-params" ${withParams ? 'checked' : ''}>
+                    <span>파라미터 <small>${escapeHtml(paramsLabel)}</small></span></label>
+                <label class="ss-checkline"><input type="checkbox" class="ss-e-with-chars" ${withChars ? 'checked' : ''}>
+                    <span>캐릭터 프롬프트 <small>${escapeHtml(charsLabel)}</small></span></label>
+                <label class="ss-checkline"><input type="checkbox" class="ss-e-with-sources" ${withSources ? 'checked' : ''}>
+                    <span>레퍼런스 · 바이브 <small>${escapeHtml(sourcesLabel)}</small></span></label>
             </div>
             <div class="ss-editor-thumb">
                 ${draft.thumb ? `<img src="${draft.thumb}" alt="">` : '<div class="ss-style-nothumb"><i class="fa-solid fa-palette"></i></div>'}
@@ -1562,9 +1599,9 @@ async function openStyleEditor($p, style) {
         tags: (draft.tags ?? []).join(', '),
         positive: draft.positive ?? '',
         negative: draft.negative ?? '',
-        withParams: Object.keys(draft.params ?? {}).length > 0,
-        withChars: (draft.characters ?? []).length > 0,
-        withSources: (draft.vibes ?? []).length > 0 || !!draft.ref?.base64,
+        withParams,
+        withChars,
+        withSources,
     };
 
     const readForm = () => {
@@ -1602,12 +1639,8 @@ async function openStyleEditor($p, style) {
         tags: splitTags(values.tags),
         positive: String(values.positive ?? ''),
         negative: String(values.negative ?? ''),
-        params: values.withParams
-            ? (Object.keys(draft.params ?? {}).length ? draft.params : styleFromCurrentState().params)
-            : {},
-        characters: values.withChars
-            ? ((draft.characters ?? []).length ? draft.characters : structuredClone(current.characters))
-            : [],
+        params: values.withParams ? structuredClone(params) : {},
+        characters: values.withChars ? structuredClone(usingChars) : [],
         vibes: values.withSources
             ? ((draft.vibes ?? []).length ? draft.vibes : structuredClone(current.vibes))
             : [],
@@ -1714,7 +1747,6 @@ async function runGenerate($p) {
 
     setBusy($p, true, '생성 준비 중…');
 
-    const wildcards = getWildcards();
     const normalize = settings.autoNormalize !== false;
     const seedValue = Number(s.seed);
     const fixedSeed = String(s.seed).trim() !== '' && Number.isInteger(seedValue) && seedValue >= 0
@@ -1756,9 +1788,9 @@ async function runGenerate($p) {
 
             const resolved = {
                 ...guarded,
-                prompt: resolvePrompt(s.prompt, wildcards, { normalize }),
-                negative: resolvePrompt(s.negative, wildcards, { normalize }),
-                characters: preparedCharacters.map(c => ({ ...c, prompt: resolvePrompt(c.prompt, wildcards, { normalize }) })),
+                prompt: resolvePrompt(s.prompt, { normalize }),
+                negative: resolvePrompt(s.negative, { normalize }),
+                characters: preparedCharacters.map(c => ({ ...c, prompt: resolvePrompt(c.prompt, { normalize }) })),
                 vibes: s.vibeEnabled ? s.vibes : [],
                 ref: preparedRef,
                 seed: fixedSeed === null ? RANDOM_SEED : fixedSeed,
@@ -1976,26 +2008,6 @@ function openLightbox(item) {
         </div>`,
         POPUP_TYPE.TEXT, '', { wide: true, large: true, allowVerticalScrolling: true },
     );
-}
-
-/* ══════════════════════════ 와일드카드 텍스트 ══════════════════════════ */
-
-function wildcardsToText(map) {
-    return Object.entries(map ?? {})
-        .map(([name, list]) => `${name}: ${(list ?? []).join(' | ')}`)
-        .join('\n');
-}
-
-function textToWildcards(text) {
-    const map = {};
-    for (const line of String(text ?? '').split('\n')) {
-        const index = line.indexOf(':');
-        if (index <= 0) continue;
-        const name = line.slice(0, index).trim();
-        const values = line.slice(index + 1).split('|').map(v => v.trim()).filter(Boolean);
-        if (name && values.length) map[name] = values;
-    }
-    return map;
 }
 
 /* ══════════════════════════ 설정 서랍 / 초기화 ══════════════════════════ */

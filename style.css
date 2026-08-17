@@ -24,6 +24,11 @@
 #ss_root .ss-vibe-controls,
 #ss_root .ss-section { min-width: 0; }
 
+/* hidden 속성이 클래스의 display 에 밀리지 않게.
+   (.ss-meta-result 처럼 display:flex 인 요소는 hidden 을 붙여도 그대로 보인다) */
+#ss_root [hidden],
+.ss-actionbar [hidden] { display: none !important; }
+
 #ss_root img { max-width: 100%; }
 #ss_root .ss-hint,
 #ss_root .ss-meta-summary,
@@ -197,25 +202,6 @@
 }
 .ss-grid-cell:hover { background: rgba(255, 255, 255, 0.25); }
 .ss-grid-cell.active { background: var(--ss-accent); }
-
-/* 캐릭터별 레퍼런스 */
-.ss-char-main { display: flex; gap: 8px; align-items: flex-start; }
-.ss-char-texts { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-.ss-char-ref {
-    flex: 0 0 84px; display: flex; flex-direction: column; gap: 3px;
-    font-size: 0.7em; align-items: center;
-}
-.ss-char-ref-slot {
-    width: 84px; height: 84px; border-radius: 8px; cursor: pointer;
-    border: 1px dashed var(--ss-border);
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-    opacity: 0.6; overflow: hidden;
-}
-.ss-char-ref-slot:hover { opacity: 1; border-color: var(--ss-accent); }
-.ss-char-ref-slot.has-image { border-style: solid; opacity: 1; }
-.ss-char-ref-slot img { width: 100%; height: 100%; object-fit: cover; }
-.ss-char-ref-range { display: flex; align-items: center; gap: 3px; width: 100%; }
-.ss-char-ref-range input[type="range"] { flex: 1 1 auto; min-width: 0; }
 
 /* ── 파라미터 ── */
 .ss-params {
@@ -419,11 +405,6 @@
 .ss-vibe-controls input[type="range"] { flex: 1 1 auto; min-width: 50px; }
 .ss-vibe-remove { position: absolute; top: 4px; right: 6px; }
 
-.ss-ref-body { display: flex; gap: 12px; align-items: flex-start; }
-.ss-ref-preview { width: 140px; border-radius: 8px; }
-.ss-ref-controls { display: flex; flex-direction: column; gap: 6px; font-size: 0.85em; flex: 1 1 auto; }
-.ss-ref-controls label { display: flex; align-items: center; gap: 6px; }
-.ss-ref-controls input[type="range"] { flex: 1 1 auto; }
 
 /* ── 갤러리 ── */
 .ss-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
@@ -445,6 +426,14 @@
 .ss-editor { display: flex; flex-direction: column; gap: 8px; text-align: left; }
 .ss-editor label { display: flex; flex-direction: column; gap: 3px; font-size: 0.85em; }
 .ss-editor-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.ss-editor-opts {
+    border: 1px solid var(--ss-border); border-radius: 10px; padding: 10px 12px;
+    display: flex; flex-direction: column; gap: 7px;
+}
+.ss-editor-opts-title { font-size: 0.8em; font-weight: 700; opacity: 0.6; }
+.ss-editor-opts .ss-checkline { align-items: flex-start; white-space: normal; }
+.ss-editor-opts .ss-checkline span { display: flex; flex-direction: column; line-height: 1.4; }
+.ss-editor-opts small { opacity: 0.55; font-size: 0.82em; }
 .ss-editor-thumb { display: flex; align-items: center; gap: 10px; }
 .ss-editor-thumb img, .ss-editor-thumb .ss-style-nothumb { width: 72px; height: 72px; border-radius: 8px; object-fit: cover; }
 
@@ -578,9 +567,6 @@ body.ss-panel-open #toast-container > div { opacity: 0.97; }
     .ss-char-main { flex-direction: column; }
     .ss-char-pos { flex-wrap: wrap; }
     .ss-char-pos input[type="range"] { flex: 1 1 80px; }
-    .ss-char-ref { flex-direction: row; flex-wrap: wrap; width: 100%; flex-basis: auto; align-items: center; }
-    .ss-char-ref-slot { width: 64px; height: 64px; }
-    .ss-char-ref-range { width: auto; flex: 1 1 90px; }
 
     /* 빠른 그림체: 가로 스크롤 대신 줄바꿈 그리드 */
     .ss-col-side { flex-direction: column; }
@@ -604,9 +590,7 @@ body.ss-panel-open #toast-container > div { opacity: 0.97; }
     .ss-gallery { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .ss-gitem-bar { gap: 10px; justify-content: space-between; }
     .ss-vibe-list { grid-template-columns: 1fr; }
-    .ss-ref-body { flex-direction: column; }
-    .ss-ref-preview { width: 100%; max-width: 220px; align-self: center; }
-    .ss-toolbar input[type="search"], .ss-toolbar select { max-width: none; flex: 1 1 120px; }
+            .ss-toolbar input[type="search"], .ss-toolbar select { max-width: none; flex: 1 1 120px; }
 
     /* 생성 바: 화면 하단 고정 + 더 크게 */
     .ss-actionbar {
@@ -645,3 +629,44 @@ body.ss-panel-open #toast-container > div { opacity: 0.97; }
 /* Anlas 상태 칩 */
 .ss-anlas { display: inline-flex; align-items: center; gap: 4px; }
 .ss-anlas.ss-warn { font-weight: 600; }
+
+/* ── 레퍼런스 목록 (전체 + 캐릭터별 통합) ── */
+.ss-ref-list { display: flex; flex-direction: column; gap: 8px; }
+
+.ss-refslot {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 8px; border: 1px solid var(--ss-border); border-radius: 10px;
+}
+.ss-refslot.has-image { border-color: #3f4a68; }
+
+.ss-refslot-pic {
+    flex: 0 0 72px; width: 72px; height: 72px;
+    border: 1px dashed var(--ss-border); border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; opacity: 0.6; overflow: hidden;
+}
+.ss-refslot-pic:hover { opacity: 1; border-color: var(--ss-accent); }
+.ss-refslot.has-image .ss-refslot-pic { border-style: solid; opacity: 1; }
+.ss-refslot-pic img { width: 100%; height: 100%; object-fit: cover; }
+
+.ss-refslot-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.ss-refslot-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.9em; }
+.ss-refslot-hint {
+    font-size: 0.75em; opacity: 0.5;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ss-refslot-controls { display: flex; flex-wrap: wrap; gap: 8px; font-size: 0.75em; margin-top: 2px; }
+.ss-refslot-controls label { display: flex; align-items: center; gap: 4px; flex: 1 1 130px; }
+.ss-refslot-controls input[type="range"] { flex: 1 1 auto; min-width: 0; }
+.ss-refslot-controls select { height: 24px; font-size: 0.95em; }
+
+.ss-char-refmark {
+    font-size: 0.7em; padding: 2px 7px; border-radius: 999px;
+    background: rgba(110, 168, 254, 0.15); color: var(--ss-accent); white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+    .ss-refslot { gap: 8px; }
+    .ss-refslot-pic { flex-basis: 60px; width: 60px; height: 60px; }
+    .ss-refslot-controls label { flex: 1 1 100%; }
+}

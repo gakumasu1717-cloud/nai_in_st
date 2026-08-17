@@ -99,12 +99,11 @@
                         <span class="ss-collapse-head"><i class="fa-solid fa-chevron-down ss-chevron"></i> 프롬프트 (Base)</span>
                         <span class="ss-field-actions">
                             <span class="ss-linkbtn" id="ss_prompt_normalize" title="중복 태그 제거 및 공백 정리">정리</span>
-                            <span class="ss-linkbtn" id="ss_prompt_preview" title="와일드카드/랜덤 전개 결과 미리보기">전개 미리보기</span>
                             <span class="ss-linkbtn" id="ss_prompt_style_merge" title="선택한 그림체 태그를 앞에 병합">그림체 병합</span>
                         </span>
                     </label>
                     <textarea id="ss_prompt" class="text_pole textarea_compact ss-textarea" rows="5"
-                        placeholder="1girl, long black hair, cinematic lighting, __lighting__, {smile|serious}"></textarea>
+                        placeholder="1girl, long black hair, cinematic lighting, looking at viewer"></textarea>
                     <div class="ss-hint">Ctrl+↑ / Ctrl+↓ : 커서 위치 태그 가중치 조절 · Ctrl+Enter : 생성</div>
                 </div>
 
@@ -248,31 +247,16 @@
 
         <div class="ss-section" data-collapse="refSection">
             <div class="ss-section-title">
-                <span class="ss-collapse-head"><i class="fa-solid fa-chevron-down ss-chevron"></i> <i class="fa-solid fa-user-tag"></i> Director Reference</span>
-                <label class="ss-checkline"><input type="checkbox" id="ss_ref_enabled"> 사용</label>
+                <span class="ss-collapse-head"><i class="fa-solid fa-chevron-down ss-chevron"></i> <i class="fa-solid fa-user-tag"></i> 레퍼런스</span>
                 <div class="ss-spacer"></div>
-                <div class="menu_button ss-mini" id="ss_ref_add">이미지 지정</div>
-                <div class="menu_button ss-mini" id="ss_ref_clear">비우기</div>
-                <input type="file" id="ss_ref_input" accept="image/*" class="ss-file-input">
+                <small class="ss-refsum" id="ss_ref_total"></small>
             </div>
             <div class="ss-hint">
-                그림 전체에 적용되는 레퍼런스입니다. <b>캐릭터별 레퍼런스</b>는 생성 탭의 캐릭터 카드에서 각각 지정하며,
-                생성할 때 여기 것과 <b>한 요청에 함께</b> 전송됩니다 (합쳐서 최대 4장).
+                그림 전체용과 캐릭터별 레퍼런스를 여기서 한 번에 관리합니다.
+                생성할 때 <b>한 요청에 함께</b> 전송되며, 합쳐서 최대 4장입니다.
             </div>
-            <div class="ss-ref-body">
-                <img id="ss_ref_preview" class="ss-ref-preview" alt="reference" hidden>
-                <div class="ss-ref-controls">
-                    <label>모드
-                        <select id="ss_ref_mode" class="text_pole">
-                            <option value="character&style">Character &amp; Style</option>
-                            <option value="character">Character</option>
-                            <option value="style">Style</option>
-                        </select>
-                    </label>
-                    <label>Strength <input type="range" id="ss_ref_strength" min="0" max="1" step="0.05"><span id="ss_ref_strength_v"></span></label>
-                    <label>Fidelity <input type="range" id="ss_ref_fidelity" min="0" max="1" step="0.05"><span id="ss_ref_fidelity_v"></span></label>
-                </div>
-            </div>
+            <div id="ss_ref_list" class="ss-ref-list"></div>
+            <input type="file" id="ss_ref_input" accept="image/*" class="ss-file-input">
         </div>
     </div>
 
@@ -330,40 +314,6 @@
                 <input type="number" id="ss_keep_history" class="text_pole ss-num" min="0" max="200">
             </label>
             <div class="menu_button ss-mini" id="ss_save_defaults">현재 파라미터를 기본값으로 저장</div>
-        </div>
-
-        <div class="ss-section">
-            <div class="ss-section-title"><span>랜덤 태그 목록 (와일드카드)</span></div>
-
-            <div class="ss-explain">
-                <b>매번 다른 태그가 자동으로 들어가는 자리</b>를 만드는 기능입니다.
-                그림체와 캐릭터는 그대로 두고 조명·포즈·배경만 바꿔가며 여러 장 뽑을 때 씁니다.
-                <div class="ss-explain-step">
-                    <span class="ss-explain-num">1</span>
-                    아래에 목록을 등록합니다 → <code>lighting: soft lighting | backlighting | cinematic lighting</code>
-                </div>
-                <div class="ss-explain-step">
-                    <span class="ss-explain-num">2</span>
-                    프롬프트에 이름을 밑줄 두 개로 감싸 넣습니다 → <code>1girl, __lighting__</code>
-                </div>
-                <div class="ss-explain-step">
-                    <span class="ss-explain-num">3</span>
-                    생성할 때마다 그 자리만 바뀝니다 →
-                    <code>1girl, soft lighting</code> · <code>1girl, backlighting</code> …
-                </div>
-                <div class="ss-hint">
-                    딱 한 번만 쓸 변주라면 등록할 필요 없이 프롬프트에 바로
-                    <code>{웃음|무표정}</code> 처럼 써도 됩니다.
-                </div>
-            </div>
-
-            <textarea id="ss_wildcards" class="text_pole textarea_compact ss-textarea" rows="8"
-                placeholder="lighting: soft lighting | backlighting | cinematic lighting&#10;pose: standing | sitting | leaning forward"></textarea>
-            <div class="ss-hint">한 줄에 하나씩 <code>이름: 값1 | 값2 | 값3</code> 형식으로 씁니다.</div>
-            <div class="ss-row ss-wrap">
-                <div class="menu_button ss-mini" id="ss_wildcards_save">저장</div>
-                <div class="menu_button ss-mini" id="ss_wildcards_example">예제 채우기</div>
-            </div>
         </div>
 
         <div class="ss-section">
