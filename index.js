@@ -149,7 +149,7 @@ function openFilePicker($p, $input) {
 
 async function fileToImageInfo(file) {
     const base64 = await blobToBase64(file);
-    const thumb = await makeThumbnail(base64, 192).catch(() => '');
+    const thumb = await makeThumbnail(base64).catch(() => '');
     return { base64, thumb };
 }
 
@@ -1777,7 +1777,8 @@ async function openCharPresetEditor($p, preset) {
     };
     $form.on('input change', 'input, textarea', readForm);
 
-    const confirmed = await callGenericPopup($form, POPUP_TYPE.CONFIRM, '', { okButton: '저장', cancelButton: '취소', wide: true });
+    const confirmed = await callGenericPopup($form, POPUP_TYPE.CONFIRM, '',
+        { okButton: '저장', cancelButton: '취소', wide: true, allowVerticalScrolling: true });
     if (!confirmed) return;
     readForm();
 
@@ -1855,7 +1856,7 @@ async function openStyleEditor($p, style) {
     $form.on('change', '.ss-e-thumb-input', async function () {
         const file = this.files?.[0];
         if (!file) return;
-        thumb = await makeThumbnail(await blobToBase64(file), 192);
+        thumb = await makeThumbnail(await blobToBase64(file));
         $form.find('.ss-editor-thumb img, .ss-editor-thumb .ss-style-nothumb')
             .replaceWith(`<img src="${thumb}" alt="">`);
     });
@@ -1896,7 +1897,8 @@ async function openStyleEditor($p, style) {
 
     $form.on('input change', 'input, textarea', readForm);
 
-    const confirmed = await callGenericPopup($form, POPUP_TYPE.CONFIRM, '', { okButton: '저장', cancelButton: '취소', wide: true });
+    const confirmed = await callGenericPopup($form, POPUP_TYPE.CONFIRM, '',
+        { okButton: '저장', cancelButton: '취소', wide: true, allowVerticalScrolling: true });
     if (!confirmed) return;
 
     readForm();   // 아직 DOM이 살아 있으면 마지막 값까지 반영
@@ -2294,12 +2296,14 @@ function createSettingsDrawer() {
                 </div>
                 <div class="inline-drawer-content">
                     <div class="ss-drawer">
-                        <div class="menu_button ss-primary" id="ss_open_panel">
-                            <i class="fa-solid fa-wand-magic-sparkles"></i> 스튜디오 열기
+                        <div class="ss-open-btn" id="ss_open_panel" role="button" tabindex="0">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>스튜디오 열기</span>
                         </div>
                         <div class="ss-hint" id="ss_drawer_status">백엔드 확인 중…</div>
                         <div class="ss-hint">
-                            저장된 그림체: <span id="ss_drawer_count">0</span>개 ·
+                            그림체 <span id="ss_drawer_count">0</span>개 ·
+                            캐릭터 <span id="ss_drawer_chars">0</span>개 ·
                             <a href="#" id="ss_drawer_export">내보내기</a>
                         </div>
                     </div>
@@ -2320,6 +2324,7 @@ function createSettingsDrawer() {
 async function updateDrawer() {
     const own = await pingOwnPlugin();
     $('#ss_drawer_count').text(getSettings().styles.length);
+    $('#ss_drawer_chars').text(getSettings().charPresets.length);
     $('#ss_drawer_status').html(own
         ? '서버 플러그인 <b>연결됨</b> — 캐릭터 프롬프트/바이브 사용 가능'
         : '서버 플러그인 <b>없음</b> — AutoPic 플러그인 또는 ST 기본 경로로 폴백');

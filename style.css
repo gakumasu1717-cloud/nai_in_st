@@ -128,7 +128,12 @@
 .ss-warn { color: #f0ad4e; }
 .ss-empty { opacity: 0.5; font-size: 0.85em; padding: 12px; text-align: center; }
 .ss-mini { padding: 3px 8px !important; font-size: 0.85em !important; }
-.ss-primary { background: var(--ss-accent) !important; color: #10131a !important; font-weight: 600; }
+/* 테마 강조색이 어두우면 검은 글자가 묻히므로, 배경 대신 테두리로 강조한다 */
+.ss-primary {
+    border-color: var(--ss-accent) !important;
+    background: rgba(110, 168, 254, 0.16) !important;
+    font-weight: 600;
+}
 .ss-num { max-width: 90px; }
 .ss-inline-select { max-width: 160px; height: 26px; font-size: 0.85em; }
 
@@ -385,7 +390,12 @@
 .ss-toolbar input[type="search"] { max-width: 240px; height: 28px; }
 .ss-toolbar select { max-width: 160px; height: 28px; }
 
-.ss-style-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+/* 화면이 넓을수록 한 줄에 더 많이 — 데스크톱에서 카드가 지나치게 커지지 않게 */
+.ss-style-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+
+@media (min-width: 900px) {
+    .ss-style-grid { grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 9px; }
+}
 .ss-style-card {
     border: 1px solid var(--ss-border); border-radius: 10px; overflow: hidden;
     display: flex; flex-direction: column;
@@ -413,11 +423,18 @@
 .ss-style-name { font-weight: 600; font-size: 0.9em; }
 .ss-style-tags { display: flex; gap: 4px; flex-wrap: wrap; }
 .ss-chip { font-size: 0.72em; padding: 1px 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.1); }
+/* 줄 수를 2줄로 고정 — 설명 길이에 따라 아래 버튼 줄 위치가 흔들리지 않게 */
 .ss-style-prompt {
-    font-size: 0.76em; opacity: 0.65; line-height: 1.4;
-    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    font-size: 0.74em; opacity: 0.6; line-height: 1.4;
+    height: 2.8em;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.ss-style-actions { display: flex; gap: 4px; padding: 6px; flex-wrap: wrap; border-top: 1px solid var(--ss-border); }
+.ss-style-actions {
+    display: flex; gap: 4px; padding: 6px; flex-wrap: wrap;
+    border-top: 1px solid var(--ss-border);
+    margin-top: auto;              /* 카드 높이가 달라도 항상 맨 아래 */
+}
+.ss-style-actions .menu_button { flex: 1 1 auto; padding: 3px 6px !important; font-size: 0.78em !important; }
 
 /* ── 레퍼런스 / 바이브 ── */
 .ss-section { border: 1px solid var(--ss-border); border-radius: 10px; padding: 10px; margin-bottom: 12px; }
@@ -449,7 +466,16 @@
 .ss-lightbox img { max-width: 100%; max-height: 65vh; border-radius: 8px; display: block; margin: 0 auto; }
 .ss-lightbox-meta { font-size: 0.82em; margin-top: 8px; }
 
-.ss-editor { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+/* 편집기는 팝업 안(=#ss_root 바깥)이라 전역 규칙이 닿지 않는다.
+   내용이 길면 팝업이 화면을 넘어가 저장 버튼이 잘리므로 여기서 직접 스크롤시킨다. */
+.ss-editor {
+    display: flex; flex-direction: column; gap: 8px; text-align: left;
+    max-height: 68vh; overflow-y: auto; overflow-x: hidden;
+    padding-right: 4px;
+}
+.ss-editor img { max-width: 100%; }
+.ss-editor .menu_button { white-space: normal; word-break: keep-all; }
+.ss-editor textarea { resize: vertical; }
 .ss-editor label { display: flex; flex-direction: column; gap: 3px; font-size: 0.85em; }
 .ss-editor-row { display: flex; gap: 12px; flex-wrap: wrap; }
 .ss-editor-opts {
@@ -522,8 +548,30 @@
     margin-top: 2px;
 }
 
-/* ── 설정 서랍 ── */
+/* ── 설정 서랍 ──
+   테마 색(--SmartThemeQuoteColor)에 기대면 다크 테마에서 글자가 묻힌다.
+   여기서는 대비를 우리가 직접 보장한다. */
 .ss-drawer { display: flex; flex-direction: column; gap: 8px; padding: 6px 0; }
+
+.ss-open-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; min-height: 42px; padding: 10px 14px;
+    border: 0; border-radius: 10px;
+    background: linear-gradient(135deg, #5b6bd6 0%, #7a5ad1 100%);
+    color: #fff !important;
+    font-size: 1em; font-weight: 700; white-space: nowrap;
+    cursor: pointer; user-select: none;
+    box-shadow: 0 2px 10px rgba(91, 107, 214, 0.35);
+    transition: filter 0.15s, transform 0.05s;
+}
+.ss-open-btn:hover { filter: brightness(1.12); }
+.ss-open-btn:active { transform: translateY(1px); }
+.ss-open-btn i { font-size: 1.05em; }
+.ss-open-btn span { white-space: nowrap; }
+
+/* 마술봉 메뉴 항목이 세로로 쪼개지지 않게 */
+#ss_wand_item { white-space: nowrap; }
+#ss_wand_item span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── 토스트 위치 ──
    생성 바가 팝업 하단에 있어서 아래쪽 토스트와 겹친다.
